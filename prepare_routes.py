@@ -3,6 +3,8 @@ import calendar
 import pandas as pd
 import numpy as np
 from scipy import spatial
+from dateutil import parser
+import random
 
 OUTPUTS_DIR = r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\outputs\long_routes_dataset"
 
@@ -58,51 +60,58 @@ SALINITY_CEDA_PATHS = [
 
 PORTS_CONDITIONS_2011_PATH = r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\Ports dataset with their temprature and salinity.csv"
 
+ROUTES_SAMPLES_COUNT = 20
+
 
 def process_routes_dataset(routes_path):
-    routes_df = pd.read_csv(routes_path)
+    output_path = os.path.join(OUTPUTS_DIR, "routes_processed.csv")
 
-    # Convert columns to right data types
-    routes_df['Arrival (LT)'] = pd.to_datetime(routes_df['Arrival (LT)'], errors='coerce', dayfirst=True)
-    routes_df['Departure (LT)'] = pd.to_datetime(routes_df['Departure (LT)'], errors='coerce', dayfirst=True)
-    routes_df['Longitude'] = pd.to_numeric(routes_df['Longitude'], errors='coerce')
-    routes_df['Latitude'] = pd.to_numeric(routes_df['Latitude'], errors='coerce')
-    routes_df['Hours'] = pd.to_numeric(routes_df['Hours'], errors='coerce')
+    if os.path.exists(output_path):
+        final_routes_df = pd.read_csv(output_path)
+    else:
+        routes_df = pd.read_csv(routes_path)
 
-    mean_time_in_port_by_ship = routes_df.groupby('Ship').mean(numeric_only=True)['Hours']
+        # Convert columns to right data types
+        routes_df['Arrival (LT)'] = pd.to_datetime(routes_df['Arrival (LT)'], errors='coerce', dayfirst=True)
+        routes_df['Departure (LT)'] = pd.to_datetime(routes_df['Departure (LT)'], errors='coerce', dayfirst=True)
+        routes_df['Longitude'] = pd.to_numeric(routes_df['Longitude'], errors='coerce')
+        routes_df['Latitude'] = pd.to_numeric(routes_df['Latitude'], errors='coerce')
+        routes_df['Hours'] = pd.to_numeric(routes_df['Hours'], errors='coerce')
 
-    final_ships_routes_dfs = []
-    for name, ship_df in routes_df.groupby('Ship'):
-        # Impute missing Hours (time in port) values
-        ship_df.loc[ship_df['Hours'].isna(), 'Hours'] = mean_time_in_port_by_ship[name]
-        ship_df['Hours (time delta)'] = pd.to_timedelta(ship_df['Hours'].astype(str) + 'h', errors='coerce')
+        mean_time_in_port_by_ship = routes_df.groupby('Ship').mean(numeric_only=True)['Hours']
 
-        # Impute missing Departure and Arrival values based on the imputed Hours values
-        ship_df.loc[ship_df['Departure (LT)'].isna(), 'Departure (LT)'] = ship_df['Arrival (LT)'] + ship_df['Hours (time delta)']
-        ship_df.loc[ship_df['Arrival (LT)'].isna(), 'Arrival (LT)'] = ship_df['Departure (LT)'] - ship_df['Hours (time delta)']
+        final_ships_routes_dfs = []
+        for name, ship_df in routes_df.groupby('Ship'):
+            # Impute missing Hours (time in port) values
+            ship_df.loc[ship_df['Hours'].isna(), 'Hours'] = mean_time_in_port_by_ship[name]
+            ship_df['Hours (time delta)'] = pd.to_timedelta(ship_df['Hours'].astype(str) + 'h', errors='coerce')
 
-        # Prepare final route of the ship
-        duplicated_ship_df = ship_df.copy()
-        ship_df = ship_df[['Ship', 'Port', 'Arrival (LT)']]
-        new_ship_df = ship_df.rename(columns={'Arrival (LT)': 'time'})
-        duplicated_ship_df = duplicated_ship_df[['Ship', 'Port', 'Departure (LT)']]
-        duplicated_ship_df.rename(columns={'Departure (LT)': 'time'}, inplace=True)
-        final_ship_df = pd.concat([new_ship_df, duplicated_ship_df], ignore_index=True)
-        final_ship_df.sort_values('time', ascending=True, inplace=True)
+            # Impute missing Departure and Arrival values based on the imputed Hours values
+            ship_df.loc[ship_df['Departure (LT)'].isna(), 'Departure (LT)'] = ship_df['Arrival (LT)'] + ship_df['Hours (time delta)']
+            ship_df.loc[ship_df['Arrival (LT)'].isna(), 'Arrival (LT)'] = ship_df['Departure (LT)'] - ship_df['Hours (time delta)']
 
-        # Convert (absolute) time column to relative time (in hours)
-        reference_time_value = final_ship_df.iloc[0]['time']
-        relative_times_in_hours = []
-        for index, row in final_ship_df.iterrows():
-            relative_times_in_hours.append((row['time'] - reference_time_value) / np.timedelta64(1, 'h'))
-        final_ship_df['relative time'] = relative_times_in_hours
-        final_ships_routes_dfs.append(final_ship_df)
+            # Prepare final route of the ship
+            duplicated_ship_df = ship_df.copy()
+            ship_df = ship_df[['Ship', 'Port', 'Arrival (LT)']]
+            new_ship_df = ship_df.rename(columns={'Arrival (LT)': 'time'})
+            duplicated_ship_df = duplicated_ship_df[['Ship', 'Port', 'Departure (LT)']]
+            duplicated_ship_df.rename(columns={'Departure (LT)': 'time'}, inplace=True)
+            final_ship_df = pd.concat([new_ship_df, duplicated_ship_df], ignore_index=True)
+            final_ship_df.sort_values('time', ascending=True, inplace=True)
 
-    final_routes_df = pd.concat(final_ships_routes_dfs, ignore_index=True)
-    final_routes_df.to_csv(os.path.join(OUTPUTS_DIR, "routes_processed.csv"), index=False, date_format="%d/%m/%y %H:%M:%S")
+            # Convert (absolute) time column to relative time (in hours)
+            reference_time_value = final_ship_df.iloc[0]['time']
+            relative_times_in_hours = []
+            for index, row in final_ship_df.iterrows():
+                relative_times_in_hours.append((row['time'] - reference_time_value) / np.timedelta64(1, 'h'))
+            final_ship_df['relative time'] = relative_times_in_hours
+            final_ships_routes_dfs.append(final_ship_df)
+
+        final_routes_df = pd.concat(final_ships_routes_dfs, ignore_index=True)
+        final_routes_df.to_csv(output_path, index=False, date_format="%d/%m/%y %H:%M:%S")
+
     print(f"There are {len(final_routes_df.groupby('Ship'))} ships in the routes dataset, "
           f"with a mean route length of {final_routes_df.groupby('Ship').count()['Port'].mean() / 2} ports")
-
     return final_routes_df
 
 
@@ -111,7 +120,7 @@ def extract_ports_locations_df_from_routes_df(routes_path):
     ports_in_routes_df = routes_df[['Port', 'Longitude', 'Latitude']]
     ports_in_routes_df = ports_in_routes_df.drop_duplicates()
     ports_in_routes_df['Port'] = ports_in_routes_df['Port'].str.lower()
-    ports_in_routes_df.reset_index(drop=True, inplace=True)
+    ports_in_routes_df.set_index('Port', inplace=True)
 
     print(f'There are {len(ports_in_routes_df)} ports in the routes dataset')
     return ports_in_routes_df
@@ -140,7 +149,7 @@ def add_conditions_to_ports_df(ports_df):
     ports_salinity_per_month = [[] for _ in range(12)]
 
     for index, row in ports_df.iterrows():
-        print(f"Extracting environment conditions for port {row['Port']} (#{index})")
+        print(f"Extracting environment conditions for port {index}")
         port_coordinates = np.array((row['Latitude'], row['Longitude']))
         for month_index in range(12):
             temperature_df, temperature_lat_long_pairs, temperature_coordinates_kd_tree = temperature_datasets[month_index]
@@ -171,8 +180,9 @@ def add_conditions_to_ports_df(ports_df):
 def add_conditions_from_2011_dataset(ports_df):
     ports_conditions_2011_df = pd.read_csv(PORTS_CONDITIONS_2011_PATH)
     ports_conditions_2011_df['PortName'] = ports_conditions_2011_df['PortName'].str.lower()
-    ports_conditions_2011_df = ports_conditions_2011_df.loc[ports_conditions_2011_df['PortName'].isin(ports_df['Port'])]
-    ports_conditions_2011_df = ports_conditions_2011_df[['PortName', 'MinTemp', 'MaxTemp', 'AnnualTemp', 'Salinity']]
+    ports_conditions_2011_df.set_index('PortName', inplace=True)
+    ports_conditions_2011_df = ports_conditions_2011_df.loc[ports_conditions_2011_df.index.isin(ports_df.index.tolist())]
+    ports_conditions_2011_df = ports_conditions_2011_df[['MinTemp', 'MaxTemp', 'AnnualTemp', 'Salinity']]
 
     print(f"The ports 2011 conditions dataset contains {len(ports_conditions_2011_df)} relevant ports")
 
@@ -181,18 +191,18 @@ def add_conditions_from_2011_dataset(ports_df):
     ports_annual_temp = []
     ports_salinity = []
 
-    for index, row in ports_df.iterrows():
-        matching_port = ports_conditions_2011_df.loc[ports_conditions_2011_df['PortName'] == row['Port']]
-        if matching_port.empty:
-            ports_min_temp.append(None)
-            ports_max_temp.append(None)
-            ports_annual_temp.append(None)
-            ports_salinity.append(None)
-        else:
+    for port in ports_df.index.tolist():
+        if port in ports_conditions_2011_df.index:
+            matching_port = ports_conditions_2011_df.loc[port]
             ports_min_temp.append(matching_port['MinTemp'].item())
             ports_max_temp.append(matching_port['MaxTemp'].item())
             ports_annual_temp.append(matching_port['AnnualTemp'].item())
             ports_salinity.append(matching_port['Salinity'].item())
+        else:
+            ports_min_temp.append(None)
+            ports_max_temp.append(None)
+            ports_annual_temp.append(None)
+            ports_salinity.append(None)
 
     ports_df['MinTemp_2011'] = ports_min_temp
     ports_df['MaxTemp_2011'] = ports_max_temp
@@ -200,13 +210,71 @@ def add_conditions_from_2011_dataset(ports_df):
     ports_df['Salinity_2011'] = ports_salinity
 
 
+def add_conditions_to_routes_df(routes_df, ports_df):
+    temperature_col = []
+    chlorophyll_col = []
+    salinity_col = []
+
+    for index, row in routes_df.iterrows():
+        port = row['Port'].lower()
+        time = parser.parse(row['time'], dayfirst=True)
+
+        temperature = ports_df.loc[port, f'NASA temperature {time.strftime("%B")}']
+        chlorophyll = ports_df.loc[port, f'NASA chlorophyll {time.strftime("%B")}']
+        salinity = ports_df.loc[port, f'CEDA salinity {time.strftime("%B")}']
+
+        temperature_col.append(temperature)
+        chlorophyll_col.append(chlorophyll)
+        salinity_col.append(salinity)
+
+    routes_df['Temperature'] = temperature_col
+    routes_df['Chlorophyll'] = chlorophyll_col
+    routes_df['Salinity'] = salinity_col
+
+
+def sample_subroutes(routes_df):
+    sampled_routes = []
+    ships = list(set(routes_df['Ship']))
+
+    routes_df['time'] = pd.to_datetime(routes_df['time'], dayfirst=True)
+    while len(sampled_routes) < ROUTES_SAMPLES_COUNT:
+        ship = random.choice(ships)
+        ship_route = routes_df.loc[routes_df['Ship'] == ship]
+        chosen_month = random.randint(1, 13)
+        chosen_year = random.choice([2019, 2020, 2021])
+        ship_route_month = ship_route.loc[(ship_route['time'].dt.month == chosen_month) & (ship_route['time'].dt.year == chosen_year)]
+        if len(ship_route_month) < 10:
+            continue
+
+        # Convert (absolute) time column to relative time (in hours)
+        reference_time_value = ship_route_month.iloc[0]['time']
+        relative_times_in_hours = []
+        for index, row in ship_route_month.iterrows():
+            relative_times_in_hours.append((row['time'] - reference_time_value) / np.timedelta64(1, 'h'))
+        ship_route_month['relative time'] = relative_times_in_hours
+
+        sampled_routes.append(ship_route_month)
+
+    sampled_routes_unified_df = pd.concat(sampled_routes, ignore_index=True)
+    sampled_routes_unified_df.to_csv(os.path.join(OUTPUTS_DIR, 'sampled_routes.csv'), index=False, date_format="%d/%m/%y %H:%M:%S")
+
+
 def main():
     final_routes_df = process_routes_dataset(SHIPS_ROUTES_DATASET_EXTENDED)
 
-    ports_df = extract_ports_locations_df_from_routes_df(SHIPS_ROUTES_DATASET_EXTENDED)
-    add_conditions_to_ports_df(ports_df)
-    add_conditions_from_2011_dataset(ports_df)
-    ports_df.to_csv(os.path.join(OUTPUTS_DIR, "combined_ports_conditions.csv"), index=False)
+    ports_conditions_path = os.path.join(OUTPUTS_DIR, "combined_ports_conditions.csv")
+    if not os.path.exists(ports_conditions_path):
+        ports_df = extract_ports_locations_df_from_routes_df(SHIPS_ROUTES_DATASET_EXTENDED)
+        add_conditions_to_ports_df(ports_df)
+        add_conditions_from_2011_dataset(ports_df)
+        ports_df.to_csv(ports_conditions_path)
+    else:
+        ports_df = pd.read_csv(ports_conditions_path, index_col='Port')
+
+    add_conditions_to_routes_df(final_routes_df, ports_df)
+    final_routes_df.to_csv(os.path.join(OUTPUTS_DIR, "routes_with_conditions.csv"), index=False)
+
+    sample_subroutes(final_routes_df)
 
 
 if __name__ == "__main__":
