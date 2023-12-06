@@ -5,6 +5,7 @@ import numpy as np
 from scipy import spatial
 from dateutil import parser
 import random
+import json
 
 OUTPUTS_DIR = r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\outputs\long_routes_dataset"
 
@@ -210,6 +211,28 @@ def add_conditions_from_2011_dataset(ports_df):
     ports_df['Salinity_2011'] = ports_salinity
 
 
+def find_statistics_on_ports_conditions(ports_df):
+    temperature_columns = [f'NASA temperature {month}' for month in MONTHS_NAMES]
+    chlorophyll_columns = [f'NASA chlorophyll {month}' for month in MONTHS_NAMES]
+    salinity_columns = [f'CEDA salinity {month}' for month in MONTHS_NAMES]
+
+    temperature_values = ports_df[temperature_columns].to_numpy()
+    chlorophyll_values = ports_df[chlorophyll_columns].to_numpy()
+    salinity_values = ports_df[salinity_columns].to_numpy()
+
+    statistics = {
+        'Temperature Min': temperature_values.min(),
+        'Temperature Max': temperature_values.max(),
+        'Chlorophyll Min': chlorophyll_values.min(),
+        'Chlorophyll Max': chlorophyll_values.max(),
+        'Salinity Min': salinity_values.min(),
+        'Salinity Max': salinity_values.max()
+    }
+
+    with open(os.path.join(OUTPUTS_DIR, 'conditions_statistics.json'), 'w') as conditions_statistics_file:
+        json.dump(statistics, conditions_statistics_file)
+
+
 def add_conditions_to_routes_df(routes_df, ports_df):
     temperature_col = []
     chlorophyll_col = []
@@ -242,8 +265,10 @@ def sample_subroutes(routes_df):
         ship_route = routes_df.loc[routes_df['Ship'] == ship]
         chosen_month = random.randint(1, 13)
         chosen_year = random.choice([2019, 2020, 2021])
-        ship_route_month = ship_route.loc[(ship_route['time'].dt.month == chosen_month) & (ship_route['time'].dt.year == chosen_year)]
+        ship_route_month = ship_route.loc[(ship_route['time'].dt.month == chosen_month) & (ship_route['time'].dt.year == chosen_year)].copy()
         if len(ship_route_month) < 10:
+            continue
+        if (ship_route_month['Temperature'] < 4).any():
             continue
 
         # Convert (absolute) time column to relative time (in hours)
@@ -266,12 +291,15 @@ def main():
     if not os.path.exists(ports_conditions_path):
         ports_df = extract_ports_locations_df_from_routes_df(SHIPS_ROUTES_DATASET_EXTENDED)
         add_conditions_to_ports_df(ports_df)
-        add_conditions_from_2011_dataset(ports_df)
+        #add_conditions_from_2011_dataset(ports_df)
         ports_df.to_csv(ports_conditions_path)
     else:
         ports_df = pd.read_csv(ports_conditions_path, index_col='Port')
 
+    find_statistics_on_ports_conditions(ports_df)
+
     add_conditions_to_routes_df(final_routes_df, ports_df)
+
     final_routes_df.to_csv(os.path.join(OUTPUTS_DIR, "routes_with_conditions.csv"), index=False)
 
     sample_subroutes(final_routes_df)
