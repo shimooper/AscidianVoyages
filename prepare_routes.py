@@ -2,23 +2,22 @@ import os
 import calendar
 import pandas as pd
 import numpy as np
-from dateutil import parser
 import random
 import json
-import datetime
 from scipy import spatial
 from utils import read_environment_datasets, get_closest_condition_value
+from intermediate_coordinates import add_intermediate_coordinates
 
 OUTPUTS_DIR = r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\outputs_new"
 
 SHIPS_ROUTES_DATASET = r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\ships routes\ships routes (ports only) with locations of ports - extended.csv"
-
 MONTHS_NAMES = calendar.month_name[1:]
 
 PORTS_CONDITIONS_2011_PATH = r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\Ports dataset with their temprature and salinity (2011 paper).csv"
 
 MIN_TEMPERATURE_IN_SAMPLED_ROUTES = 5
 ROUTES_SAMPLES_COUNT = 20
+WINTER_MONTHS = [1, 2]
 
 
 def process_routes_dataset(routes_path):
@@ -165,32 +164,45 @@ def sample_subroutes(routes_df):
     sampled_routes_ids = []
     while len(sampled_routes) < ROUTES_SAMPLES_COUNT:
         ship = random.choice(ships)
-        ship_route = routes_df.loc[routes_df['Ship'] == ship]
-        chosen_month = random.choice([1, 2])
         chosen_year = random.choice([2019, 2020, 2021])
 
-        if (ship, chosen_year, chosen_month) in sampled_routes_ids:
+        if (ship, chosen_year) in sampled_routes_ids:
             continue
 
-        ship_route_month = ship_route.loc[(ship_route['time'].dt.month == chosen_month) & (ship_route['time'].dt.year == chosen_year)].copy()
-        if len(ship_route_month) < 10:
-            continue
-        if (ship_route_month['Temperature'] < MIN_TEMPERATURE_IN_SAMPLED_ROUTES).any():
-            continue
-        if ship_route_month.iloc[-1]['time'] - ship_route_month.iloc[0]['time'] < datetime.timedelta(days=25):
+        ship_winter_route = routes_df.loc[(routes_df['Ship'] == ship) &
+                                          (routes_df['time'].dt.month.isin(WINTER_MONTHS)) &
+                                          (routes_df['time'].dt.year == chosen_year)].copy()
+
+        if len(ship_winter_route) < 10:
             continue
 
-        # Convert (absolute) time column to relative time (in hours)
-        reference_time_value = ship_route_month.iloc[0]['time']
+        # Convert (absolute) time column to relative time (in hours) + cut route to be 30 days
+        sample_last_row_index = None
+        reference_time_value = ship_winter_route.iloc[0]['time']
         relative_times_in_hours = []
-        for index, row in ship_route_month.iterrows():
+        for index, row in ship_winter_route.iterrows():
             relative_times_in_hours.append((row['time'] - reference_time_value) / np.timedelta64(1, 'h'))
-        ship_route_month['relative time (hours)'] = relative_times_in_hours
-        ship_route_month = ship_route_month[['Ship', 'Port', 'Longitude', 'Latitude', 'time', 'relative time (hours)',
-                                             'Temperature', 'Chlorophyll', 'Salinity']]
+            days_passed_from_first_rows = (row['time'] - reference_time_value) / np.timedelta64(24, 'h')
+            if days_passed_from_first_rows >= 30:
+                sample_last_row_index = index
+                break
 
-        sampled_routes.append(ship_route_month)
-        sampled_routes_ids.append((ship, chosen_year, chosen_month))
+        if sample_last_row_index is None:  # Winter route has data of less than 30 days
+            continue
+        ship_winter_route = ship_winter_route.loc[ship_winter_route.index <= sample_last_row_index]
+        if len(ship_winter_route) < 10:
+            continue
+        ship_winter_route['relative time (hours)'] = relative_times_in_hours
+
+        add_intermediate_coordinates(ship_winter_route)
+        if (ship_winter_route['Temperature'] < MIN_TEMPERATURE_IN_SAMPLED_ROUTES).any():
+            continue
+
+        ship_winter_route = ship_winter_route[['Ship', 'Port', 'Longitude', 'Latitude', 'time', 'relative time (hours)',
+                                               'Temperature', 'Chlorophyll', 'Salinity']]
+
+        sampled_routes.append(ship_winter_route)
+        sampled_routes_ids.append((ship, chosen_year))
 
     sampled_routes_unified_df = pd.concat(sampled_routes, ignore_index=True)
     sampled_routes_unified_df.to_csv(os.path.join(OUTPUTS_DIR, 'sampled_routes.csv'), index=False, date_format="%d/%m/%y %H:%M:%S")
