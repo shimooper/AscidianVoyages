@@ -18,8 +18,8 @@ def add_intermediate_coordinates(ship_winter_route):
         origin = (ship_winter_route.loc[index - 1]['Longitude'], ship_winter_route.loc[index - 1]['Latitude'])
         destination = (row['Longitude'], row['Latitude'])
 
-        origin_time = ship_winter_route.loc[index - 1]['time']
-        destination_time = row['time']
+        origin_time = ship_winter_route.loc[index - 1]['Time']
+        destination_time = row['Time']
 
         number_of_intermediate_coordinates = find_number_of_intermediate_days(origin_time, destination_time)
         if number_of_intermediate_coordinates == 0:
@@ -32,18 +32,18 @@ def add_intermediate_coordinates(ship_winter_route):
             chlorophyll = get_chlorophyll_value(date.month, coordinate[::-1])
             salinity = get_salinity_value(date.month, coordinate[::-1])
             new_row = pd.Series(data={'Ship': row['Ship'], 'Port': '-', 'Longitude': coordinate[0],
-                                      'Latitude': coordinate[1], 'time': date, 'Temperature': temperature,
+                                      'Latitude': coordinate[1], 'Time': date, 'Temperature': temperature,
                                       'Chlorophyll': chlorophyll, 'Salinity': salinity})
             new_rows.append(new_row)
 
     new_rows_df = pd.DataFrame(new_rows)
     extended_route = pd.concat([ship_winter_route, new_rows_df])
-    extended_route.sort_values('time', inplace=True, ignore_index=True)
+    extended_route.sort_values('Time', inplace=True, ignore_index=True)
 
     # Trim route to be exactly 30 days
-    reference_time_value = ship_winter_route.iloc[0]['time']
+    reference_time_value = ship_winter_route.iloc[0]['Time']
     for index, row in extended_route.iterrows():
-        days_passed_from_first_row = (row['time'] - reference_time_value) / np.timedelta64(24, 'h')
+        days_passed_from_first_row = (row['Time'] - reference_time_value) / np.timedelta64(24, 'h')
         if days_passed_from_first_row >= 30:
             sample_last_row_index = index
             break
