@@ -54,8 +54,11 @@ def add_intermediate_coordinates(ship_winter_route):
 
 def find_number_of_intermediate_days(origin_time, destination_time):
     if origin_time.month == 1 and destination_time.month == 2:
-        origin_time.day = -(31 - origin_time.day)
-    return (destination_time.day - origin_time.day) - 1
+        origin_day = -(31 - origin_time.day)
+    else:
+        origin_day = origin_time.day
+
+    return (destination_time.day - origin_day) - 1
 
 
 def find_coordinates_between_ports(origin, destination, number_of_intermediate_coordinates):
