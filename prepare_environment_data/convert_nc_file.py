@@ -46,8 +46,8 @@ def main():
         df = DS.to_dataframe()
         df = df.reset_index()
         filtered_df = df.loc[df['sss'].notnull()]
-        filtered_df.rename(columns={'sss': 'value'})
-        filtered_df = filtered_df[['lat', 'lon', 'sss']]
+        filtered_df.rename(columns={'sss': 'value'}, inplace=True)
+        filtered_df = filtered_df[['lat', 'lon', 'value']]
         filtered_df.to_csv(output_file, index=False)
 
 
