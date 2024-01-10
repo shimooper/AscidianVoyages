@@ -1,50 +1,18 @@
 from scipy import spatial
 import pandas as pd
+import os
 
-TEMPERATURE_NASA_PATHS = {
-    1: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\temperature data from NASA earth observations\2019\temprature_NASA_2019_01_formatted.CSV",
-    2: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\temperature data from NASA earth observations\2019\temprature_NASA_2019_02_formatted.CSV",
-    3: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\temperature data from NASA earth observations\2019\temprature_NASA_2019_03_formatted.CSV",
-    4: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\temperature data from NASA earth observations\2019\temprature_NASA_2019_04_formatted.CSV",
-    5: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\temperature data from NASA earth observations\2019\temprature_NASA_2019_05_formatted.CSV",
-    6: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\temperature data from NASA earth observations\2019\temprature_NASA_2019_06_formatted.CSV",
-    7: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\temperature data from NASA earth observations\2019\temprature_NASA_2019_07_formatted.CSV",
-    8: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\temperature data from NASA earth observations\2019\temprature_NASA_2019_08_formatted.CSV",
-    9: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\temperature data from NASA earth observations\2019\temprature_NASA_2019_09_formatted.CSV",
-    10: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\temperature data from NASA earth observations\2019\temprature_NASA_2019_10_formatted.CSV",
-    11: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\temperature data from NASA earth observations\2019\temprature_NASA_2019_11_formatted.CSV",
-    12: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\temperature data from NASA earth observations\2019\temprature_NASA_2019_12_formatted.CSV"
-}
+BASE_DIR = r"C:\Users\TalPNB22\OneDrive\Documents\University\Master\Ships"
+ENVIRONMENT_CONDITIONS_BASE_DIR = os.path.join(BASE_DIR, "datasets from Doron", "environment conditions")
 
-CHLOROPHYLL_NASA_PATHS = {
-    1: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\chlorophyll data from NASA earth observations\2019\chlorophyl_NASA_2019_01_formatted.CSV",
-    2: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\chlorophyll data from NASA earth observations\2019\chlorophyl_NASA_2019_02_formatted.CSV",
-    3: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\chlorophyll data from NASA earth observations\2019\chlorophyl_NASA_2019_03_formatted.CSV",
-    4: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\chlorophyll data from NASA earth observations\2019\chlorophyl_NASA_2019_04_formatted.CSV",
-    5: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\chlorophyll data from NASA earth observations\2019\chlorophyl_NASA_2019_05_formatted.CSV",
-    6: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\chlorophyll data from NASA earth observations\2019\chlorophyl_NASA_2019_06_formatted.CSV",
-    7: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\chlorophyll data from NASA earth observations\2019\chlorophyl_NASA_2019_07_formatted.CSV",
-    8: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\chlorophyll data from NASA earth observations\2019\chlorophyl_NASA_2019_08_formatted.CSV",
-    9: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\chlorophyll data from NASA earth observations\2019\chlorophyl_NASA_2019_09_formatted.CSV",
-    10: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\chlorophyll data from NASA earth observations\2019\chlorophyl_NASA_2019_10_formatted.CSV",
-    11: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\chlorophyll data from NASA earth observations\2019\chlorophyl_NASA_2019_11_formatted.CSV",
-    12: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\chlorophyll data from NASA earth observations\2019\chlorophyl_NASA_2019_12_formatted.CSV"
-}
+TEMPERATURE_FILE_PATTERN = os.path.join(ENVIRONMENT_CONDITIONS_BASE_DIR, r"temperature data from NASA earth observations", "2019", "temprature_NASA_2019_{:02d}_formatted.CSV")
+TEMPERATURE_NASA_PATHS = {i: TEMPERATURE_FILE_PATTERN.format(i) for i in range(1,13)}
 
-SALINITY_CEDA_PATHS = {
-    1: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\salinity data from CEDA\2019 csv files\salinity_2019_01.csv",
-    2: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\salinity data from CEDA\2019 csv files\salinity_2019_02.csv",
-    3: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\salinity data from CEDA\2019 csv files\salinity_2019_03.csv",
-    4: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\salinity data from CEDA\2019 csv files\salinity_2019_04.csv",
-    5: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\salinity data from CEDA\2019 csv files\salinity_2019_05.csv",
-    6: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\salinity data from CEDA\2019 csv files\salinity_2019_06.csv",
-    7: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\salinity data from CEDA\2019 csv files\salinity_2019_07.csv",
-    8: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\salinity data from CEDA\2019 csv files\salinity_2019_08.csv",
-    9: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\salinity data from CEDA\2019 csv files\salinity_2019_09.csv",
-    10: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\salinity data from CEDA\2019 csv files\salinity_2019_10.csv",
-    11: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\salinity data from CEDA\2019 csv files\salinity_2019_11.csv",
-    12: r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\salinity data from CEDA\2019 csv files\salinity_2019_12.csv"
-}
+CHLOROPHYLL_FILE_PATTERN = os.path.join(ENVIRONMENT_CONDITIONS_BASE_DIR, r"chlorophyll data from NASA earth observations", "2019", "chlorophyl_NASA_2019_{:02d}_formatted.CSV")
+CHLOROPHYLL_NASA_PATHS = {i: CHLOROPHYLL_FILE_PATTERN.format(i) for i in range(1,13)}
+
+SALINITY_FILE_PATTERN = os.path.join(ENVIRONMENT_CONDITIONS_BASE_DIR, r"salinity data from CEDA", "2019 csv files", "salinity_2019_{:02d}.csv")
+SALINITY_CEDA_PATHS = {i: SALINITY_FILE_PATTERN.format(i) for i in range(1,13)}
 
 
 def read_condition_dataset(dataset_path):

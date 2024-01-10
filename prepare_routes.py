@@ -5,15 +5,15 @@ import numpy as np
 import random
 import json
 from scipy import spatial
-from utils import get_temperature_value, get_chlorophyll_value, get_salinity_value
+from utils import get_temperature_value, get_chlorophyll_value, get_salinity_value, BASE_DIR
 from intermediate_coordinates import add_intermediate_coordinates
 
-OUTPUTS_DIR = r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\outputs_new"
+OUTPUTS_DIR = os.path.join(BASE_DIR, "outputs_new")
 
-SHIPS_ROUTES_DATASET = r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\ships routes\ships routes (ports only) with locations of ports - extended.csv"
+SHIPS_ROUTES_DATASET = os.path.join(BASE_DIR, r"datasets from Doron", "ships routes", "ships routes (ports only) with locations of ports - extended.csv")
 MONTHS_NAMES = calendar.month_name[1:]
 
-PORTS_CONDITIONS_2011_PATH = r"C:\Users\yairs\OneDrive\Documents\University\Master\Ships\datasets from Doron\environment conditions\Ports dataset with their temprature and salinity (2011 paper).csv"
+PORTS_CONDITIONS_2011_PATH = os.path.join(BASE_DIR, r"datasets from Doron", "environment conditions", "Ports dataset with their temprature and salinity (2011 paper).csv")
 
 MIN_TEMPERATURE_IN_SAMPLED_ROUTES = 5
 ROUTES_SAMPLES_COUNT = 20
