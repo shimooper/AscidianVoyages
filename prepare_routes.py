@@ -26,7 +26,7 @@ def process_routes_dataset(routes_path):
 
     if os.path.exists(output_path):
         final_routes_df = pd.read_csv(output_path)
-        final_routes_df['Time'] = pd.to_datetime(final_routes_df['Time'], dayfirst=True)
+        final_routes_df['Time'] = pd.to_datetime(final_routes_df['Time'], format="%d/%m/%y %H:%M:%S")
     else:
         routes_df = pd.read_csv(routes_path)
 
@@ -179,7 +179,7 @@ def sample_winter_subroutes(routes_df):
         sample_last_row_index = None
         reference_time_value = ship_winter_route.iloc[0]['Time']
         for index, row in ship_winter_route.iterrows():
-            days_passed_from_first_row = (row['Time'] - reference_time_value) / np.timedelta64(24, 'h')
+            days_passed_from_first_row = (row['Time'].date() - reference_time_value.date()).days + 1
             if days_passed_from_first_row >= 30:
                 sample_last_row_index = index
                 break
@@ -187,6 +187,8 @@ def sample_winter_subroutes(routes_df):
         if sample_last_row_index is None:  # Winter route has data of less than 30 days
             continue
         ship_winter_route = ship_winter_route.loc[ship_winter_route.index <= sample_last_row_index]
+
+        # If winter route has less than 10 data points, don't use it
         if len(ship_winter_route) < 10:
             continue
 
@@ -194,6 +196,11 @@ def sample_winter_subroutes(routes_df):
 
         if (extended_winter_route['Temperature'] < MIN_TEMPERATURE_IN_SAMPLED_ROUTES).any():
             continue
+
+        # In case there are multiple data points in the same day, keep only 1.
+        extended_winter_route['Date'] = extended_winter_route['Time'].dt.date
+        extended_winter_route.drop_duplicates(subset=['Date'], inplace=True)
+        extended_winter_route.drop(columns=['Date'], inplace=True)
 
         # Convert (absolute) time column to relative time (in hours)
         relative_times_in_hours = []

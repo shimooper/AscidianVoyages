@@ -43,7 +43,7 @@ def add_intermediate_coordinates(ship_winter_route):
     # Trim route to be exactly 30 days
     reference_time_value = ship_winter_route.iloc[0]['Time']
     for index, row in extended_route.iterrows():
-        days_passed_from_first_row = (row['Time'] - reference_time_value) / np.timedelta64(24, 'h')
+        days_passed_from_first_row = (row['Time'].date() - reference_time_value.date()).days + 1
         if days_passed_from_first_row >= 30:
             sample_last_row_index = index
             break
