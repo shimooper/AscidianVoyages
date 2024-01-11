@@ -86,9 +86,7 @@ def line_scaled_coordinate(points, t):
 
 
 def get_intermediate_dates(origin_time, destination_time):
-    origin_time = origin_time.replace(hour=12, minute=0)
-    destination_time = destination_time.replace(hour=12, minute=0)
+    delta = destination_time.date() - origin_time.date()
 
-    delta = destination_time - origin_time
-    dates = [origin_time + timedelta(days=i) for i in range(1, delta.days)]
+    dates = [pd.Timestamp(origin_time.date()) + timedelta(days=i) for i in range(1, delta.days)]
     return dates
