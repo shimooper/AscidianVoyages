@@ -10,9 +10,9 @@ MARITIME_MEASUREMENTS_TIME_INTERVAL = 24  # The time interval (in hours) to add 
 
 def add_intermediate_coordinates(ship_winter_route):
     ship_winter_route.reset_index(drop=True, inplace=True)
-    new_rows = []
+    new_ship_rows = []
     for index, row in ship_winter_route.iterrows():
-        if index == 0 or row['Port'] == ship_winter_route.loc[index - 1]['Port']:
+        if index == 0:
             continue
 
         origin = (ship_winter_route.loc[index - 1]['Longitude'], ship_winter_route.loc[index - 1]['Latitude'])
@@ -21,22 +21,18 @@ def add_intermediate_coordinates(ship_winter_route):
         origin_time = ship_winter_route.loc[index - 1]['Time']
         destination_time = row['Time']
 
-        number_of_intermediate_coordinates = find_number_of_intermediate_days(origin_time, destination_time)
-        if number_of_intermediate_coordinates == 0:
+        intermediate_dates = get_intermediate_dates(origin_time, destination_time)
+        if intermediate_dates == 0:
             continue
 
-        intermediate_coordinates = find_coordinates_between_ports(origin, destination, number_of_intermediate_coordinates)
-        intermediate_dates = get_intermediate_dates(origin_time, destination_time)
-        for coordinate, date in zip(intermediate_coordinates, intermediate_dates):
-            temperature = get_temperature_value(date.month, coordinate[::-1])
-            chlorophyll = get_chlorophyll_value(date.month, coordinate[::-1])
-            salinity = get_salinity_value(date.month, coordinate[::-1])
-            new_row = pd.Series(data={'Ship': row['Ship'], 'Port': '-', 'Longitude': coordinate[0],
-                                      'Latitude': coordinate[1], 'Time': date, 'Temperature': temperature,
-                                      'Chlorophyll': chlorophyll, 'Salinity': salinity})
-            new_rows.append(new_row)
+        if row['Port'] == ship_winter_route.loc[index - 1]['Port']:
+            new_rows = generate_port_rows(row, intermediate_dates)
+        else:
+            new_rows = generate_sea_rows(row['Ship'], origin, destination, intermediate_dates)
 
-    new_rows_df = pd.DataFrame(new_rows)
+        new_ship_rows.extend(new_rows)
+
+    new_rows_df = pd.DataFrame(new_ship_rows)
     extended_route = pd.concat([ship_winter_route, new_rows_df])
     extended_route.sort_values('Time', inplace=True, ignore_index=True)
 
@@ -52,13 +48,30 @@ def add_intermediate_coordinates(ship_winter_route):
     return extended_route
 
 
-def find_number_of_intermediate_days(origin_time, destination_time):
-    if origin_time.month == 1 and destination_time.month == 2:
-        origin_day = -(31 - origin_time.day)
-    else:
-        origin_day = origin_time.day
+def generate_port_rows(row, intermediate_dates):
+    new_rows = []
+    for date in intermediate_dates:
+        new_row = pd.Series(data={'Ship': row['Ship'], 'Port': row['Port'], 'Longitude': row['Longitude'],
+                                  'Latitude': row['Latitude'], 'Time': date, 'Temperature': row['Temperature'],
+                                  'Chlorophyll': row['Chlorophyll'], 'Salinity': row['Salinity']})
+        new_rows.append(new_row)
 
-    return (destination_time.day - origin_day) - 1
+    return new_rows
+
+
+def generate_sea_rows(ship, origin, destination, intermediate_dates):
+    new_rows = []
+    intermediate_coordinates = find_coordinates_between_ports(origin, destination, len(intermediate_dates))
+    for coordinate, date in zip(intermediate_coordinates, intermediate_dates):
+        temperature = get_temperature_value(date.month, coordinate[::-1])
+        chlorophyll = get_chlorophyll_value(date.month, coordinate[::-1])
+        salinity = get_salinity_value(date.month, coordinate[::-1])
+        new_row = pd.Series(data={'Ship': ship, 'Port': '-', 'Longitude': coordinate[0],
+                                  'Latitude': coordinate[1], 'Time': date, 'Temperature': temperature,
+                                  'Chlorophyll': chlorophyll, 'Salinity': salinity})
+        new_rows.append(new_row)
+
+    return new_rows
 
 
 def find_coordinates_between_ports(origin, destination, number_of_intermediate_coordinates):
