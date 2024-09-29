@@ -3,21 +3,20 @@ import os
 import pandas as pd
 import numpy as np
 
-from utils import get_temperature_value, get_chlorophyll_value, get_salinity_value, OUTPUTS_DIR
+from utils import get_temperature_value, get_chlorophyll_value, get_salinity_value
 from intermediate_coordinates import add_intermediate_coordinates
 
-ROUTES_SAMPLES_COUNT = 20
 MIN_TEMPERATURE_IN_SAMPLED_ROUTES = 5
 WINTER_MONTHS = [1, 2]
 WINTER_MONTHS_TO_SUMMER_MONTH = {1: 7, 2: 8}
 
 
-def sample_winter_subroutes(routes_df):
+def sample_winter_subroutes(routes_df, routes_to_sample, outputs_dir, existing_route_ids=None):
     sampled_routes = []
     ships = list(set(routes_df['Ship']))
 
-    sampled_routes_ids = []
-    while len(sampled_routes) < ROUTES_SAMPLES_COUNT:
+    sampled_routes_ids = [] if existing_route_ids is None else existing_route_ids
+    while len(sampled_routes) < routes_to_sample:
         ship = random.choice(ships)
         chosen_year = random.choice([2019, 2020, 2021])
 
@@ -74,13 +73,13 @@ def sample_winter_subroutes(routes_df):
     sampled_routes_df.rename(columns={'Temperature': 'Temperature (celsius)', 'Chlorophyll': 'Chlorophyll (mg/m^3)',
                                       'Salinity': 'Salinity (ppt)'}, inplace=True)
 
-    sampled_routes_df.to_csv(os.path.join(OUTPUTS_DIR, 'sampled_winter_routes.csv'), index=False, date_format="%d/%m/%y %H:%M:%S")
+    sampled_routes_df.to_csv(os.path.join(outputs_dir, 'sampled_winter_routes.csv'), index=False, date_format="%d/%m/%y %H:%M:%S")
 
-    print(f"Sampled {ROUTES_SAMPLES_COUNT} routes on January/February")
+    print(f"Sampled {routes_to_sample} routes on January/February")
     return sampled_routes_df
 
 
-def convert_to_summer_routes(routes_df):
+def convert_to_summer_routes(routes_df, outputs_dir):
     times = []
     temperatures = []
     chlorophylls = []
@@ -108,5 +107,5 @@ def convert_to_summer_routes(routes_df):
     routes_df['Chlorophyll (mg/m^3)'] = chlorophylls
     routes_df['Salinity (ppt)'] = salinities
 
-    routes_df.to_csv(os.path.join(OUTPUTS_DIR, 'sampled_summer_routes.csv'), index=False, date_format="%d/%m/%y %H:%M:%S")
+    routes_df.to_csv(os.path.join(outputs_dir, 'sampled_summer_routes.csv'), index=False, date_format="%d/%m/%y %H:%M:%S")
     print(f"Converted winter routes to summer routes")

@@ -13,6 +13,8 @@ MONTHS_NAMES = calendar.month_name[1:]
 
 PORTS_CONDITIONS_2011_PATH = os.path.join(BASE_DIR, r"datasets from Doron", "environment conditions", "Ports dataset with their temprature and salinity (2011 paper).csv")
 
+ROUTES_SAMPLES_COUNT = 20
+
 
 def process_routes_dataset(routes_path):
     output_path = os.path.join(OUTPUTS_DIR, "routes_processed.csv")
@@ -174,8 +176,8 @@ def main():
         processed_routes_df.to_csv(os.path.join(OUTPUTS_DIR, "routes_with_conditions.csv"), index=False)
         print("Added conditions to the routes")
 
-    winter_routes = sample_winter_subroutes(processed_routes_df)
-    convert_to_summer_routes(winter_routes)
+    winter_routes = sample_winter_subroutes(processed_routes_df, ROUTES_SAMPLES_COUNT, OUTPUTS_DIR)
+    convert_to_summer_routes(winter_routes, OUTPUTS_DIR)
 
 
 if __name__ == "__main__":
