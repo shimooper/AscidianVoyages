@@ -3,6 +3,7 @@ import pandas as pd
 import os
 
 BASE_DIR = r"C:\Users\TalPNB22\OneDrive\Documents\University\Master\Ships"
+OUTPUTS_DIR = os.path.join(BASE_DIR, "outputs_new")
 ENVIRONMENT_CONDITIONS_BASE_DIR = os.path.join(BASE_DIR, "datasets from Doron", "environment conditions")
 
 TEMPERATURE_FILE_PATTERN = os.path.join(ENVIRONMENT_CONDITIONS_BASE_DIR, r"temperature data from NASA earth observations", "2019", "temprature_NASA_2019_{:02d}_formatted.CSV")

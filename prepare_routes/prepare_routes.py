@@ -2,23 +2,16 @@ import os
 import calendar
 import pandas as pd
 import numpy as np
-import random
 import json
 from scipy import spatial
-from utils import get_temperature_value, get_chlorophyll_value, get_salinity_value, BASE_DIR
-from intermediate_coordinates import add_intermediate_coordinates
+from utils import get_temperature_value, get_chlorophyll_value, BASE_DIR, OUTPUTS_DIR
+from sample_routes import sample_winter_subroutes, convert_to_summer_routes
 
-OUTPUTS_DIR = os.path.join(BASE_DIR, "outputs_new")
 
 SHIPS_ROUTES_DATASET = os.path.join(BASE_DIR, r"datasets from Doron", "ships routes", "ships routes (ports only) with locations of ports - extended.csv")
 MONTHS_NAMES = calendar.month_name[1:]
 
 PORTS_CONDITIONS_2011_PATH = os.path.join(BASE_DIR, r"datasets from Doron", "environment conditions", "Ports dataset with their temprature and salinity (2011 paper).csv")
-
-MIN_TEMPERATURE_IN_SAMPLED_ROUTES = 5
-ROUTES_SAMPLES_COUNT = 20
-WINTER_MONTHS = [1, 2]
-WINTER_MONTHS_TO_SUMMER_MONTH = {1: 7, 2: 8}
 
 
 def process_routes_dataset(routes_path):
@@ -156,130 +149,33 @@ def add_conditions_to_routes_df(routes_df, ports_df):
     routes_df['Salinity'] = salinity_col
 
 
-def sample_winter_subroutes(routes_df):
-    sampled_routes = []
-    ships = list(set(routes_df['Ship']))
-
-    sampled_routes_ids = []
-    while len(sampled_routes) < ROUTES_SAMPLES_COUNT:
-        ship = random.choice(ships)
-        chosen_year = random.choice([2019, 2020, 2021])
-
-        if (ship, chosen_year) in sampled_routes_ids:
-            continue
-
-        ship_winter_route = routes_df.loc[(routes_df['Ship'] == ship) &
-                                          (routes_df['Time'].dt.month.isin(WINTER_MONTHS)) &
-                                          (routes_df['Time'].dt.year == chosen_year)].copy()
-
-        if len(ship_winter_route) < 10:
-            continue
-
-        # Trim route to be 30 days
-        sample_last_row_index = None
-        reference_time_value = ship_winter_route.iloc[0]['Time']
-        for index, row in ship_winter_route.iterrows():
-            days_passed_from_first_row = (row['Time'].date() - reference_time_value.date()).days + 1
-            if days_passed_from_first_row >= 30:
-                sample_last_row_index = index
-                break
-
-        if sample_last_row_index is None:  # Winter route has data of less than 30 days
-            continue
-        ship_winter_route = ship_winter_route.loc[ship_winter_route.index <= sample_last_row_index]
-
-        # If winter route has less than 10 data points, don't use it
-        if len(ship_winter_route) < 10:
-            continue
-
-        extended_winter_route = add_intermediate_coordinates(ship_winter_route)
-
-        if (extended_winter_route['Temperature'] < MIN_TEMPERATURE_IN_SAMPLED_ROUTES).any():
-            continue
-
-        # In case there are multiple data points in the same day, keep only 1.
-        extended_winter_route['Date'] = extended_winter_route['Time'].dt.date
-        extended_winter_route.drop_duplicates(subset=['Date'], inplace=True)
-        extended_winter_route.drop(columns=['Date'], inplace=True)
-
-        # Convert (absolute) time column to relative time (in hours)
-        relative_times_in_hours = []
-        for index, row in extended_winter_route.iterrows():
-            relative_times_in_hours.append((row['Time'] - reference_time_value) / np.timedelta64(1, 'h'))
-        extended_winter_route['Relative time (hours)'] = relative_times_in_hours
-
-        extended_winter_route = extended_winter_route[['Ship', 'Port', 'Longitude', 'Latitude', 'Time',
-                                                       'Relative time (hours)', 'Temperature', 'Chlorophyll', 'Salinity']]
-
-        sampled_routes.append(extended_winter_route)
-        sampled_routes_ids.append((ship, chosen_year))
-
-    sampled_routes_df = pd.concat(sampled_routes, ignore_index=True)
-    sampled_routes_df.rename(columns={'Temperature': 'Temperature (celsius)', 'Chlorophyll': 'Chlorophyll (mg/m^3)',
-                                      'Salinity': 'Salinity (ppt)'}, inplace=True)
-
-    sampled_routes_df.to_csv(os.path.join(OUTPUTS_DIR, 'sampled_winter_routes.csv'), index=False, date_format="%d/%m/%y %H:%M:%S")
-
-    return sampled_routes_df
-
-
-def convert_to_summer_routes(routes_df):
-    times = []
-    temperatures = []
-    chlorophylls = []
-    salinities = []
-
-    for index, row in routes_df.iterrows():
-        summer_month = WINTER_MONTHS_TO_SUMMER_MONTH[row['Time'].month]
-        summer_time = row['Time'].replace(month=summer_month)
-        coordinates = (row['Latitude'], row['Longitude'])
-        summer_temperature = get_temperature_value(summer_month, coordinates)
-        summer_chlorophyll = get_chlorophyll_value(summer_month, coordinates)
-
-        if row['Port'] == '-':
-            summer_salinity = get_salinity_value(summer_month, coordinates)
-        else:  # In ports we have a fixed salinity all year
-            summer_salinity = row['Salinity (ppt)']
-
-        times.append(summer_time)
-        temperatures.append(summer_temperature)
-        chlorophylls.append(summer_chlorophyll)
-        salinities.append(summer_salinity)
-
-    routes_df['Time'] = times
-    routes_df['Temperature (celsius)'] = temperatures
-    routes_df['Chlorophyll (mg/m^3)'] = chlorophylls
-    routes_df['Salinity (ppt)'] = salinities
-
-    routes_df.to_csv(os.path.join(OUTPUTS_DIR, 'sampled_summer_routes.csv'), index=False, date_format="%d/%m/%y %H:%M:%S")
-
-
 def main():
     os.makedirs(OUTPUTS_DIR, exist_ok=True)
 
-    processed_routes_df = process_routes_dataset(SHIPS_ROUTES_DATASET)
-
-    ports_conditions_path = os.path.join(OUTPUTS_DIR, "combined_ports_conditions.csv")
-    if not os.path.exists(ports_conditions_path):
-        ports_df = extract_ports_locations_df_from_routes_df(SHIPS_ROUTES_DATASET)
-        add_temperature_and_chlorophyll_to_ports_df(ports_df)
-        add_salinity_to_ports_df(ports_df)
-        ports_df.to_csv(ports_conditions_path)
+    routes_with_conditions_path = os.path.join(OUTPUTS_DIR, "routes_with_conditions.csv")
+    if os.path.exists(routes_with_conditions_path):
+        processed_routes_df = pd.read_csv(routes_with_conditions_path)
     else:
-        ports_df = pd.read_csv(ports_conditions_path, index_col='Port')
-    print(f"Extracted environment conditions for the {len(ports_df)} ports that were found in the routes dataset")
+        processed_routes_df = process_routes_dataset(SHIPS_ROUTES_DATASET)
 
-    find_statistics_on_ports_conditions(ports_df)
+        ports_conditions_path = os.path.join(OUTPUTS_DIR, "combined_ports_conditions.csv")
+        if not os.path.exists(ports_conditions_path):
+            ports_df = extract_ports_locations_df_from_routes_df(SHIPS_ROUTES_DATASET)
+            add_temperature_and_chlorophyll_to_ports_df(ports_df)
+            add_salinity_to_ports_df(ports_df)
+            ports_df.to_csv(ports_conditions_path)
+        else:
+            ports_df = pd.read_csv(ports_conditions_path, index_col='Port')
+        print(f"Extracted environment conditions for the {len(ports_df)} ports that were found in the routes dataset")
 
-    add_conditions_to_routes_df(processed_routes_df, ports_df)
-    processed_routes_df.to_csv(os.path.join(OUTPUTS_DIR, "routes_with_conditions.csv"), index=False)
-    print("Added conditions to the routes")
+        find_statistics_on_ports_conditions(ports_df)
+
+        add_conditions_to_routes_df(processed_routes_df, ports_df)
+        processed_routes_df.to_csv(os.path.join(OUTPUTS_DIR, "routes_with_conditions.csv"), index=False)
+        print("Added conditions to the routes")
 
     winter_routes = sample_winter_subroutes(processed_routes_df)
-    print(f"Sampled {ROUTES_SAMPLES_COUNT} routes on January/February")
-
     convert_to_summer_routes(winter_routes)
-    print(f"Converted winter routes to summer routes")
 
 
 if __name__ == "__main__":
