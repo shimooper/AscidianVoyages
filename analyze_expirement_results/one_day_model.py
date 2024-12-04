@@ -1,5 +1,7 @@
 import os
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 from utils import TRAIN_PATH, TEST_PATH, OUTPUTS_DIR
 ONE_DAY_MODEL_OUTPUTS = OUTPUTS_DIR / 'one_day_model'
@@ -46,9 +48,21 @@ def create_one_day_data():
     return one_day_train_df, one_day_test_df
 
 
+def plot_one_day_data(one_day_df):
+    one_day_df['death_label'] = one_day_df['death'].map({1: 'Dead', 0: 'Alive'})
+    sns.scatterplot(x='temperature', y='salinity', hue='death_label', data=one_day_df, alpha=0.7, palette={'Dead': 'red', 'Alive': 'green'})
+    plt.xlabel("Temperature (celsius)")
+    plt.ylabel("Salinity (ppt)")
+    plt.title("One Day Model")
+    plt.legend(title="Status")
+    plt.grid(alpha=0.3)
+    plt.savefig(ONE_DAY_MODEL_OUTPUTS / "scatter_plot.png", dpi=300, bbox_inches='tight')
+
+
 def main():
     one_day_train_df, one_day_test_df = create_one_day_data()
-
+    one_day_full_df = pd.concat([one_day_train_df, one_day_test_df], axis=0)
+    plot_one_day_data(one_day_full_df)
 
 
 if __name__ == '__main__':
