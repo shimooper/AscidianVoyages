@@ -21,11 +21,11 @@ def plot_timeline(condition_label, condition_full_name, y_axis_label):
 
         ax.plot(days, condition_values, color='gray', alpha=0.3)  # Plot temperature line
 
-        alive_days = [day for day, status in zip(days, survival_values) if status == 1]
-        dead_days = [day for day, status in zip(days, survival_values) if status == 0]
+        alive_days = [day for day, status in zip(days, survival_values) if status == 0]
+        dead_days = [day for day, status in zip(days, survival_values) if status == 1]
 
-        alive_conditions = [condition for condition, status in zip(condition_values, survival_values) if status == 1]
-        dead_conditions = [condition for condition, status in zip(condition_values, survival_values) if status == 0]
+        alive_conditions = [condition for condition, status in zip(condition_values, survival_values) if status == 0]
+        dead_conditions = [condition for condition, status in zip(condition_values, survival_values) if status == 1]
 
         ax.scatter(alive_days, alive_conditions, color='green', alpha=0.5, label='Alive' if index == 0 else "")
         ax.scatter(dead_days, dead_conditions, color='red', alpha=0.5, label='Dead' if index == 0 else "")
