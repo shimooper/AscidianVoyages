@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from utils import OUTPUTS_DIR, DATA_PROCESSED_PATH
+from utils import OUTPUTS_DIR, DATA_PROCESSED_NO_CONTROL_PATH
 ROUTES_VISUALIZATIONS = OUTPUTS_DIR / 'routes_visualizations'
 os.makedirs(ROUTES_VISUALIZATIONS, exist_ok=True)
 
@@ -10,7 +10,7 @@ os.makedirs(ROUTES_VISUALIZATIONS, exist_ok=True)
 def plot_timeline(condition_label, condition_full_name, y_axis_label):
     fig, ax = plt.subplots(figsize=(15, 10))
 
-    df = pd.read_csv(DATA_PROCESSED_PATH)
+    df = pd.read_csv(DATA_PROCESSED_NO_CONTROL_PATH)
     lived_columns = sorted([col for col in df.columns if 'Lived' in col], key=lambda x: int(x.split()[1]))
     condition_columns = sorted([col for col in df.columns if condition_label in col], key=lambda x: int(x.split()[1]))
 

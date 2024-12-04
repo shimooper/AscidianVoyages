@@ -1,6 +1,7 @@
 import pandas as pd
-
-from utils import DATA_PATH, DATA_PROCESSED_PATH, variable_equals_value
+from sklearn.model_selection import train_test_split
+from utils import DATA_PATH, DATA_PROCESSED_PATH, variable_equals_value, TRAIN_PATH, TEST_PATH, RANDOM_STATE, \
+    TEST_SET_SIZE, DATA_PROCESSED_NO_CONTROL_PATH
 
 
 def main():
@@ -49,8 +50,17 @@ def main():
             dying_day[idx] = pd.NA
 
     df['dying_day'] = df.index.map(dying_day)
-
     df.to_csv(DATA_PROCESSED_PATH, index=False)
+    df_no_control = df[df['Name'] != 'CONTROL']
+    df_no_control.to_csv(DATA_PROCESSED_NO_CONTROL_PATH, index=False)
+
+    train_df, test_df = train_test_split(df_no_control, test_size=TEST_SET_SIZE, random_state=RANDOM_STATE)
+    train_df.to_csv(TRAIN_PATH, index=False)
+    test_df.to_csv(TEST_PATH, index=False)
+
+    print(f"Originaly there were {len(df)} rows in the dataset.\n"
+          f"After removing the CONTROL group, there are {len(df_no_control)} rows.\n"
+          f"Train set has {len(train_df)} rows and test set has {len(test_df)} rows.")
 
 
 if __name__ == '__main__':
