@@ -4,8 +4,12 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from utils import TRAIN_PATH, TEST_PATH, OUTPUTS_DIR
-ONE_DAY_MODEL_OUTPUTS = OUTPUTS_DIR / 'one_day_model'
-os.makedirs(ONE_DAY_MODEL_OUTPUTS, exist_ok=True)
+from classifiers_train_and_test import fit_on_train_data
+
+ONE_DAY_MODEL_DIR = OUTPUTS_DIR / 'one_day_model'
+ONE_DAY_MODEL_DATA_DIR = ONE_DAY_MODEL_DIR / 'data'
+ONE_DAY_MODEL_TRAIN_OUTPUTS_DIR = ONE_DAY_MODEL_DIR / 'train_outputs'
+ONE_DAY_MODEL_TEST_OUTPUTS_DIR = ONE_DAY_MODEL_DIR / 'test_outputs'
 
 
 def convert_routes_to_one_day_data(df):
@@ -39,11 +43,11 @@ def convert_routes_to_one_day_data(df):
 def create_one_day_data():
     train_df = pd.read_csv(TRAIN_PATH)
     one_day_train_df = convert_routes_to_one_day_data(train_df)
-    one_day_train_df.to_csv(ONE_DAY_MODEL_OUTPUTS / 'one_day_train_data.csv', index=False)
+    one_day_train_df.to_csv(ONE_DAY_MODEL_DATA_DIR / 'one_day_train_data.csv', index=False)
 
     test_df = pd.read_csv(TEST_PATH)
     one_day_test_df = convert_routes_to_one_day_data(test_df)
-    one_day_test_df.to_csv(ONE_DAY_MODEL_OUTPUTS / 'one_day_test_data.csv', index=False)
+    one_day_test_df.to_csv(ONE_DAY_MODEL_DATA_DIR / 'one_day_test_data.csv', index=False)
 
     return one_day_train_df, one_day_test_df
 
@@ -56,13 +60,21 @@ def plot_one_day_data(one_day_df):
     plt.title("One Day Model")
     plt.legend(title="Status")
     plt.grid(alpha=0.3)
-    plt.savefig(ONE_DAY_MODEL_OUTPUTS / "scatter_plot.png", dpi=300, bbox_inches='tight')
+    plt.savefig(ONE_DAY_MODEL_DATA_DIR / "scatter_plot.png", dpi=300, bbox_inches='tight')
 
 
 def main():
+    os.makedirs(ONE_DAY_MODEL_DIR, exist_ok=True)
+    os.makedirs(ONE_DAY_MODEL_DATA_DIR, exist_ok=True)
+    os.makedirs(ONE_DAY_MODEL_TRAIN_OUTPUTS_DIR, exist_ok=True)
+    os.makedirs(ONE_DAY_MODEL_TEST_OUTPUTS_DIR, exist_ok=True)
+
     one_day_train_df, one_day_test_df = create_one_day_data()
     one_day_full_df = pd.concat([one_day_train_df, one_day_test_df], axis=0)
     plot_one_day_data(one_day_full_df)
+
+    fit_on_train_data(one_day_train_df[['temperature', 'salinity']], one_day_train_df['death'],
+                      ONE_DAY_MODEL_TRAIN_OUTPUTS_DIR, -1, 'ONE_DAY_MODEL_TRAIN')
 
 
 if __name__ == '__main__':

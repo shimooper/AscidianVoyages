@@ -9,22 +9,20 @@ from utils import RANDOM_STATE
 knn_grid = {
         'n_neighbors': [5, 10],
         'weights': ['uniform', 'distance'],
-        'algorithm': ['ball_tree', 'kd_tree', 'brute'],
-        'leaf_size': [15, 30],
-        'p': [1, 2],
+        'metric': ['euclidean', 'manhattan', 'minkowski']
 }
 
 logistic_regression_grid = {
-    "solver": ['liblinear'],
-    "penalty": ['l2'],
-    "C": [0.001, 0.01, 0.1, 1, 10, 100, 1000],
-    "max_iter": [500],
+    'solver': ['liblinear', 'saga'],
+    'penalty': ['l1', 'l2', 'elasticnet', 'none'],
+    'C': [0.01, 0.1, 1, 10, 100],
+    'max_iter': [500],
     'random_state': [RANDOM_STATE],
     'class_weight': ['balanced', None],
 }
 
 mlp_grid = {
-    'hidden_layer_sizes': [(10,3),(30,5),(50,10), (100,)],
+    'hidden_layer_sizes': [(10,3),(30,5),],
     'activation': ['tanh', 'relu'],
     'solver': ['adam'],
     'alpha': [0.0001, 0.05],
@@ -35,13 +33,13 @@ mlp_grid = {
 }
 
 rfc_grid = {
-        'n_estimators': [20],
-        'criterion': ['gini', 'entropy'],
-        'max_features': ['sqrt', 'log2'],
+        'n_estimators': [5, 20],
+        'max_depth': [None, 5, 10, 20],
         'min_samples_split': [2, 5, 10],
         'min_samples_leaf': [1, 4],
         'random_state': [RANDOM_STATE],
         'class_weight': ['balanced', None],
+        'bootstrap': [True, False]
 }
 
 gbc_grid = {
@@ -56,7 +54,7 @@ gbc_grid = {
 classifiers = [
     (KNeighborsClassifier(), knn_grid),
     (LogisticRegression(), logistic_regression_grid),
-    (MLPClassifier(), mlp_grid),
+    # (MLPClassifier(), mlp_grid),
     (RandomForestClassifier(), rfc_grid),
-    (GradientBoostingClassifier(), gbc_grid),
+    # (GradientBoostingClassifier(), gbc_grid),
 ]

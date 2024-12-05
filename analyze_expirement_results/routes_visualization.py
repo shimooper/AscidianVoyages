@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 
 from utils import OUTPUTS_DIR, DATA_PROCESSED_NO_CONTROL_PATH
 ROUTES_VISUALIZATIONS = OUTPUTS_DIR / 'routes_visualizations'
-os.makedirs(ROUTES_VISUALIZATIONS, exist_ok=True)
 
 
 def plot_timeline(condition_label, condition_full_name, y_axis_label):
@@ -40,6 +39,7 @@ def plot_timeline(condition_label, condition_full_name, y_axis_label):
 
 
 def main():
+    os.makedirs(ROUTES_VISUALIZATIONS, exist_ok=True)
     plot_timeline('Temp', 'Temperature', 'Temperature (celsius)')
     plot_timeline('Salinity', 'Salinity', 'Salinity (ppt)')
 
