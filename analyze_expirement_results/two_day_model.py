@@ -1,15 +1,9 @@
 import os
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
 
-from utils import TRAIN_PATH, TEST_PATH, OUTPUTS_DIR
+from utils import TRAIN_INCLUDE_SUSPECTED_PATH, TEST_INCLUDE_SUSPECTED_PATH, OUTPUTS_INCLUDE_SUSPECTED_DIR,\
+    TRAIN_EXCLUDE_SUSPECTED_PATH, TEST_EXCLUDE_SUSPECTED_PATH, OUTPUTS_EXCLUDE_SUSPECTED_DIR
 from classifiers_train_and_test import fit_on_train_data, test_on_test_data
-
-TWO_DAY_MODEL_DIR = OUTPUTS_DIR / 'two_day_model'
-TWO_DAY_MODEL_DATA_DIR = TWO_DAY_MODEL_DIR / 'data'
-TWO_DAY_MODEL_TRAIN_OUTPUTS_DIR = TWO_DAY_MODEL_DIR / 'train_outputs'
-TWO_DAY_MODEL_TEST_OUTPUTS_DIR = TWO_DAY_MODEL_DIR / 'test_outputs'
 
 
 def convert_routes_to_two_day_data(df):
@@ -17,16 +11,16 @@ def convert_routes_to_two_day_data(df):
 
     two_day_data = []
     for index, row in df.iterrows():
-        for col in temperature_columns[:-1]:
+        for col in temperature_columns[-1:0:-1]:
             col_day = int(col.split(' ')[1])
-            if pd.isna(row[f'Temp {col_day + 1}']):  # Row (route) is done
-                break
+            if pd.isna(row[f'Temp {col_day}']):
+                continue
             new_row = {
-                'previous day temperature': row[f'Temp {col_day}'],
-                'current day temperature': row[f'Temp {col_day + 1}'],
-                'previous day salinity': row[f'Salinity {col_day}'],
-                'current day salinity': row[f'Salinity {col_day + 1}'],
-                'death': row[f'Lived {col_day + 1}']
+                'current day temperature': row[f'Temp {col_day}'],
+                'previous day temperature': row[f'Temp {col_day - 1}'],
+                'current day salinity': row[f'Salinity {col_day}'],
+                'previous day salinity': row[f'Salinity {col_day - 1}'],
+                'death': row[f'Lived {col_day}']
             }
             two_day_data.append(new_row)
 
@@ -37,30 +31,38 @@ def convert_routes_to_two_day_data(df):
     return two_day_df
 
 
-def create_two_day_data():
-    train_df = pd.read_csv(TRAIN_PATH)
+def create_two_day_data(train_path, test_path, model_data_dir):
+    train_df = pd.read_csv(train_path)
     two_day_train_df = convert_routes_to_two_day_data(train_df)
-    two_day_train_df.to_csv(TWO_DAY_MODEL_DATA_DIR / 'train.csv', index=False)
+    two_day_train_df.to_csv(model_data_dir / 'train.csv', index=False)
 
-    test_df = pd.read_csv(TEST_PATH)
+    test_df = pd.read_csv(test_path)
     two_day_test_df = convert_routes_to_two_day_data(test_df)
-    two_day_test_df.to_csv(TWO_DAY_MODEL_DATA_DIR / 'test.csv', index=False)
+    two_day_test_df.to_csv(model_data_dir / 'test.csv', index=False)
 
     return two_day_train_df, two_day_test_df
 
 
-def main():
-    os.makedirs(TWO_DAY_MODEL_DIR, exist_ok=True)
-    os.makedirs(TWO_DAY_MODEL_DATA_DIR, exist_ok=True)
-    os.makedirs(TWO_DAY_MODEL_TRAIN_OUTPUTS_DIR, exist_ok=True)
-    os.makedirs(TWO_DAY_MODEL_TEST_OUTPUTS_DIR, exist_ok=True)
+def run_analysis(train_path, test_path, outputs_dir):
+    os.makedirs(outputs_dir, exist_ok=True)
+    model_data_dir = outputs_dir / 'data'
+    os.makedirs(model_data_dir, exist_ok=True)
+    model_train_dir = outputs_dir / 'train_outputs'
+    os.makedirs(model_train_dir, exist_ok=True)
+    model_test_dir = outputs_dir / 'test_outputs'
+    os.makedirs(model_test_dir, exist_ok=True)
 
-    two_day_train_df, two_day_test_df = create_two_day_data()
+    two_day_train_df, two_day_test_df = create_two_day_data(train_path, test_path, model_data_dir)
 
     fit_on_train_data(two_day_train_df.drop(columns=['death']), two_day_train_df['death'],
-                      TWO_DAY_MODEL_TRAIN_OUTPUTS_DIR, -1, 'TWO_DAY_MODEL_TRAIN')
-    test_on_test_data(TWO_DAY_MODEL_TRAIN_OUTPUTS_DIR / 'best_model.pkl', two_day_test_df.drop(columns=['death']),
-                      two_day_test_df['death'], TWO_DAY_MODEL_TEST_OUTPUTS_DIR, 'TWO_DAY_MODEL_TEST')
+                      model_train_dir, -1, 'TWO_DAY_MODEL_TRAIN')
+    test_on_test_data(model_train_dir / 'best_model.pkl', two_day_test_df.drop(columns=['death']),
+                      two_day_test_df['death'], model_test_dir, 'TWO_DAY_MODEL_TEST')
+
+
+def main():
+    run_analysis(TRAIN_INCLUDE_SUSPECTED_PATH, TEST_INCLUDE_SUSPECTED_PATH, OUTPUTS_INCLUDE_SUSPECTED_DIR / 'two_day_model')
+    run_analysis(TRAIN_EXCLUDE_SUSPECTED_PATH, TEST_EXCLUDE_SUSPECTED_PATH, OUTPUTS_EXCLUDE_SUSPECTED_DIR / 'two_day_model')
 
 
 if __name__ == '__main__':

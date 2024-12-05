@@ -1,10 +1,15 @@
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from utils import DATA_PATH, DATA_PROCESSED_PATH, variable_equals_value, TRAIN_PATH, TEST_PATH, RANDOM_STATE, \
-    TEST_SET_SIZE, DATA_PROCESSED_NO_CONTROL_PATH
+from utils import variable_equals_value, setup_logger, \
+    DATA_DIR, DATA_PATH, DATA_PROCESSED_PATH, DATA_PROCESSED_EXCLUDE_CONTROL_PATH, \
+    FULL_INCLUDE_SUSPECTED_PATH, TRAIN_INCLUDE_SUSPECTED_PATH, TEST_INCLUDE_SUSPECTED_PATH, \
+    FULL_EXCLUDE_SUSPECTED_PATH, TRAIN_EXCLUDE_SUSPECTED_PATH, TEST_EXCLUDE_SUSPECTED_PATH, \
+    RANDOM_STATE, TEST_SET_SIZE
 
 
 def main():
+    logger = setup_logger(DATA_DIR / 'preprocess.log', 'PREPROCESS')
+
     df = pd.read_excel(DATA_PATH, sheet_name='final_data')
 
     # Convert Temp, Salinity, Lived columns to integers
@@ -16,13 +21,7 @@ def main():
     for col in lived_columns + temperature_columns + salinity_columns + ['Suspected from time point']:
         df[col] = pd.to_numeric(df[col], errors='raise').astype("Int64")
 
-    # In Lived columns: replace 1 with 0, 0 with 1, keeping NaN as is
-    for col in lived_columns:
-        df[col] = df[col].apply(lambda x: 1 if variable_equals_value(x, 0) else (0 if variable_equals_value(x, 1) else x))
-
-    # Convert all values in Lived columns to integers again
-    for col in lived_columns:
-        df[col] = pd.to_numeric(df[col], errors='raise').astype("Int64")
+    replace_lived_indicators(df, lived_columns)
 
     # Add dying_day column and convert all values after death to nan
     dying_day = {}
@@ -50,17 +49,54 @@ def main():
             dying_day[idx] = pd.NA
 
     df['dying_day'] = df.index.map(dying_day)
+    df['stratify_group'] = df['Season'] + '_' + df['dying_day'].notna().astype(int).astype(str)
     df.to_csv(DATA_PROCESSED_PATH, index=False)
-    df_no_control = df[df['Name'] != 'CONTROL']
-    df_no_control.to_csv(DATA_PROCESSED_NO_CONTROL_PATH, index=False)
 
-    train_df, test_df = train_test_split(df_no_control, test_size=TEST_SET_SIZE, random_state=RANDOM_STATE)
-    train_df.to_csv(TRAIN_PATH, index=False)
-    test_df.to_csv(TEST_PATH, index=False)
+    df_exclude_control = df[df['Name'] != 'CONTROL']
+    df_exclude_control.to_csv(DATA_PROCESSED_EXCLUDE_CONTROL_PATH, index=False)
+    df_exclude_control.to_csv(FULL_INCLUDE_SUSPECTED_PATH, index=False)
 
-    print(f"Originaly there were {len(df)} rows in the dataset.\n"
-          f"After removing the CONTROL group, there are {len(df_no_control)} rows.\n"
-          f"Train set has {len(train_df)} rows and test set has {len(test_df)} rows.")
+    logger.info(f"Originally there were {len(df)} rows in the dataset. "
+                f"After removing the CONTROL group, there are {len(df_exclude_control)} rows. "
+                f"Of which, {df_exclude_control['dying_day'].notna().sum()} ended with death "
+                f"and {df_exclude_control['dying_day'].isna().sum()} did not.")
+
+    # From now on, I refer only to the data excluding the CONTROL group
+    create_train_test_splits(logger, df_exclude_control, TRAIN_INCLUDE_SUSPECTED_PATH, TEST_INCLUDE_SUSPECTED_PATH)
+    remove_suspected_routes_parts(df_exclude_control, lived_columns, temperature_columns, salinity_columns, FULL_EXCLUDE_SUSPECTED_PATH)
+    create_train_test_splits(logger, df_exclude_control, TRAIN_EXCLUDE_SUSPECTED_PATH, TEST_EXCLUDE_SUSPECTED_PATH)
+
+
+def replace_lived_indicators(df, lived_columns):
+    # In Lived columns: replace 1 with 0, 0 with 1, keeping NaN as is
+    for col in lived_columns:
+        df[col] = df[col].apply(lambda x: 1 if variable_equals_value(x, 0) else (0 if variable_equals_value(x, 1) else x))
+
+    # Convert all values in Lived columns to integers again
+    for col in lived_columns:
+        df[col] = pd.to_numeric(df[col], errors='raise').astype("Int64")
+
+
+def create_train_test_splits(logger, df, train_path, test_path):
+    train_df, test_df = train_test_split(df, test_size=TEST_SET_SIZE, random_state=RANDOM_STATE, stratify=df['stratify_group'])
+    train_df.to_csv(train_path, index=False)
+    test_df.to_csv(test_path, index=False)
+    logger.info(f"Train set has {len(train_df)} routes and test set has {len(test_df)} routes.")
+
+
+def remove_suspected_routes_parts(df, lived_columns, temperature_columns, salinity_columns, output_path):
+    for idx, row in df.iterrows():
+        if pd.isna(row['Suspected from time point']):
+            continue
+
+        if row['Suspected from time point'] != row['dying_day']:
+            raise ValueError(f"Row {idx} has different values in 'Suspected from time point' and 'dying_day' columns.")
+
+        for col in lived_columns + temperature_columns + salinity_columns:
+            if int(col.split()[1]) >= row['Suspected from time point']:
+                df.loc[idx, col] = pd.NA
+
+    df.to_csv(output_path, index=False)
 
 
 if __name__ == '__main__':

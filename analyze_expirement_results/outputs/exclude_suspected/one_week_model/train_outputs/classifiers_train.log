@@ -1,0 +1,4 @@
+2024-12-05 16:40:10,053 - ONE_WEEK_MODEL_TRAIN - INFO - Training Classifier RandomForestClassifier with hyperparameters tuning using Stratified-KFold CV.
+2024-12-05 16:40:23,995 - ONE_WEEK_MODEL_TRAIN - INFO - Best params: {'bootstrap': False, 'class_weight': None, 'max_depth': 5, 'min_samples_leaf': 1, 'min_samples_split': 2, 'n_estimators': 20, 'random_state': 42}, Best index: 157, Best score: 0.5584671831320531
+2024-12-05 16:40:23,996 - ONE_WEEK_MODEL_TRAIN - INFO - Best estimator - Mean MCC on train folds: 0.5919469005559663, Mean AUPRC on train folds: 0.6396292838260782, Mean F1 on train fold: 0.5265791119449656, Mean MCC on held-out folds: 0.5584671831320531, Mean AUPRC on held-out folds: 0.40347160320020875, Mean F1 o held-out folds: 0.49696969696969695
+2024-12-05 16:40:25,166 - ONE_WEEK_MODEL_TRAIN - INFO - Best classifier (according to mean_mcc_on_held_out_folds): RandomForestClassifier

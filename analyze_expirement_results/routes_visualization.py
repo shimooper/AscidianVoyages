@@ -2,14 +2,13 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from utils import OUTPUTS_DIR, DATA_PROCESSED_NO_CONTROL_PATH
-ROUTES_VISUALIZATIONS = OUTPUTS_DIR / 'routes_visualizations'
+from utils import FULL_INCLUDE_SUSPECTED_PATH, FULL_EXCLUDE_SUSPECTED_PATH, OUTPUTS_INCLUDE_SUSPECTED_DIR, OUTPUTS_EXCLUDE_SUSPECTED_DIR
 
 
-def plot_timeline(condition_label, condition_full_name, y_axis_label):
+def plot_timeline(routes_path, condition_label, condition_full_name, y_axis_label, output_dir):
     fig, ax = plt.subplots(figsize=(15, 10))
 
-    df = pd.read_csv(DATA_PROCESSED_NO_CONTROL_PATH)
+    df = pd.read_csv(routes_path)
     lived_columns = sorted([col for col in df.columns if 'Lived' in col], key=lambda x: int(x.split()[1]))
     condition_columns = sorted([col for col in df.columns if condition_label in col], key=lambda x: int(x.split()[1]))
 
@@ -35,13 +34,18 @@ def plot_timeline(condition_label, condition_full_name, y_axis_label):
     ax.legend(loc='center right')
     ax.grid(True)
 
-    fig.savefig(ROUTES_VISUALIZATIONS / f'routes_timeline_{condition_full_name.lower()}', dpi=300)
+    os.makedirs(output_dir, exist_ok=True)
+    fig.savefig(output_dir / f'routes_timeline_{condition_full_name.lower()}', dpi=300)
+
+
+def run_analysis(routes_path, output_dir):
+    plot_timeline(routes_path, 'Temp', 'Temperature', 'Temperature (celsius)', output_dir / 'routes_visualizations')
+    plot_timeline(routes_path, 'Salinity', 'Salinity', 'Salinity (ppt)', output_dir / 'routes_visualizations')
 
 
 def main():
-    os.makedirs(ROUTES_VISUALIZATIONS, exist_ok=True)
-    plot_timeline('Temp', 'Temperature', 'Temperature (celsius)')
-    plot_timeline('Salinity', 'Salinity', 'Salinity (ppt)')
+    run_analysis(FULL_INCLUDE_SUSPECTED_PATH, OUTPUTS_INCLUDE_SUSPECTED_DIR)
+    run_analysis(FULL_EXCLUDE_SUSPECTED_PATH, OUTPUTS_EXCLUDE_SUSPECTED_DIR)
 
 
 if __name__ == '__main__':

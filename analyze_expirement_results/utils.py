@@ -1,15 +1,33 @@
+import os
 from pathlib import Path
 import pandas as pd
 import logging
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DATA_PATH = SCRIPT_DIR / 'data' / 'Final_Data_Voyages.xlsx'
-DATA_PROCESSED_PATH = SCRIPT_DIR / 'data' / 'Final_Data_Voyages_Processed.csv'
-DATA_PROCESSED_NO_CONTROL_PATH = SCRIPT_DIR / 'data' / 'Final_Data_Voyages_Processed_No_Control.csv'
-TRAIN_PATH = SCRIPT_DIR / 'data' / 'train.csv'
-TEST_PATH = SCRIPT_DIR / 'data' / 'test.csv'
+DATA_DIR = SCRIPT_DIR / 'data'
+DATA_PATH = DATA_DIR / 'Final_Data_Voyages.xlsx'
+DATA_PROCESSED_PATH = DATA_DIR / 'Final_Data_Voyages_Processed.csv'
+DATA_PROCESSED_EXCLUDE_CONTROL_PATH = DATA_DIR / 'Final_Data_Voyages_Processed_Exclude_Control.csv'
+
+
+# The data I refer to from now on is always excluding the CONTROL routes
+DATA_PROCESSED_INCLUDE_SUSPECTED_DIR = SCRIPT_DIR / 'data' / 'include_suspected'
+os.makedirs(DATA_PROCESSED_INCLUDE_SUSPECTED_DIR, exist_ok=True)
+FULL_INCLUDE_SUSPECTED_PATH = DATA_PROCESSED_INCLUDE_SUSPECTED_DIR / 'full.csv'
+TRAIN_INCLUDE_SUSPECTED_PATH = DATA_PROCESSED_INCLUDE_SUSPECTED_DIR / 'train.csv'
+TEST_INCLUDE_SUSPECTED_PATH = DATA_PROCESSED_INCLUDE_SUSPECTED_DIR / 'test.csv'
+
+DATA_PROCESSED_EXCLUDE_SUSPECTED_DIR = SCRIPT_DIR / 'data' / 'exclude_suspected'
+os.makedirs(DATA_PROCESSED_EXCLUDE_SUSPECTED_DIR, exist_ok=True)
+FULL_EXCLUDE_SUSPECTED_PATH = DATA_PROCESSED_EXCLUDE_SUSPECTED_DIR / 'full.csv'
+TRAIN_EXCLUDE_SUSPECTED_PATH = DATA_PROCESSED_EXCLUDE_SUSPECTED_DIR / 'train.csv'
+TEST_EXCLUDE_SUSPECTED_PATH = DATA_PROCESSED_EXCLUDE_SUSPECTED_DIR / 'test.csv'
 
 OUTPUTS_DIR = SCRIPT_DIR / 'outputs'
+OUTPUTS_INCLUDE_SUSPECTED_DIR = OUTPUTS_DIR / 'include_suspected'
+os.makedirs(OUTPUTS_INCLUDE_SUSPECTED_DIR, exist_ok=True)
+OUTPUTS_EXCLUDE_SUSPECTED_DIR = OUTPUTS_DIR / 'exclude_suspected'
+os.makedirs(OUTPUTS_EXCLUDE_SUSPECTED_DIR, exist_ok=True)
 
 RANDOM_STATE = 42
 TEST_SET_SIZE = 0.25
@@ -23,6 +41,9 @@ def variable_equals_value(variable, value):
 
 
 def setup_logger(log_file, logger_name, level=logging.INFO):
+    if os.path.exists(log_file):
+        os.remove(log_file)
+
     # Create a logger
     logger = logging.getLogger(logger_name)
     logger.setLevel(level)

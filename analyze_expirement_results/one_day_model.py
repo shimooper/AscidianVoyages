@@ -3,13 +3,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from utils import TRAIN_PATH, TEST_PATH, OUTPUTS_DIR
+from utils import TRAIN_INCLUDE_SUSPECTED_PATH, TEST_INCLUDE_SUSPECTED_PATH, OUTPUTS_INCLUDE_SUSPECTED_DIR,\
+    TRAIN_EXCLUDE_SUSPECTED_PATH, TEST_EXCLUDE_SUSPECTED_PATH, OUTPUTS_EXCLUDE_SUSPECTED_DIR
 from classifiers_train_and_test import fit_on_train_data, test_on_test_data
-
-ONE_DAY_MODEL_DIR = OUTPUTS_DIR / 'one_day_model'
-ONE_DAY_MODEL_DATA_DIR = ONE_DAY_MODEL_DIR / 'data'
-ONE_DAY_MODEL_TRAIN_OUTPUTS_DIR = ONE_DAY_MODEL_DIR / 'train_outputs'
-ONE_DAY_MODEL_TEST_OUTPUTS_DIR = ONE_DAY_MODEL_DIR / 'test_outputs'
 
 
 def convert_routes_to_one_day_data(df):
@@ -40,19 +36,19 @@ def convert_routes_to_one_day_data(df):
     return one_day_df
 
 
-def create_one_day_data():
-    train_df = pd.read_csv(TRAIN_PATH)
+def create_one_day_data(train_path, test_path, data_dir):
+    train_df = pd.read_csv(train_path)
     one_day_train_df = convert_routes_to_one_day_data(train_df)
-    one_day_train_df.to_csv(ONE_DAY_MODEL_DATA_DIR / 'train.csv', index=False)
+    one_day_train_df.to_csv(data_dir / 'train.csv', index=False)
 
-    test_df = pd.read_csv(TEST_PATH)
+    test_df = pd.read_csv(test_path)
     one_day_test_df = convert_routes_to_one_day_data(test_df)
-    one_day_test_df.to_csv(ONE_DAY_MODEL_DATA_DIR / 'test.csv', index=False)
+    one_day_test_df.to_csv(data_dir / 'test.csv', index=False)
 
     return one_day_train_df, one_day_test_df
 
 
-def plot_one_day_data(one_day_df):
+def plot_one_day_data(one_day_df, data_dir):
     one_day_df['death_label'] = one_day_df['death'].map({1: 'Dead', 0: 'Alive'})
     sns.scatterplot(x='temperature', y='salinity', hue='death_label', data=one_day_df, alpha=0.7, palette={'Dead': 'red', 'Alive': 'green'})
     plt.xlabel("Temperature (celsius)")
@@ -60,23 +56,31 @@ def plot_one_day_data(one_day_df):
     plt.title("One Day Model")
     plt.legend(title="Status")
     plt.grid(alpha=0.3)
-    plt.savefig(ONE_DAY_MODEL_DATA_DIR / "scatter_plot.png", dpi=300, bbox_inches='tight')
+    plt.savefig(data_dir / "scatter_plot.png", dpi=300, bbox_inches='tight')
+
+
+def run_analysis(train_path, test_path, outputs_dir):
+    os.makedirs(outputs_dir, exist_ok=True)
+    model_data_dir = outputs_dir / 'data'
+    os.makedirs(model_data_dir, exist_ok=True)
+    model_train_dir = outputs_dir / 'train_outputs'
+    os.makedirs(model_train_dir, exist_ok=True)
+    model_test_dir = outputs_dir / 'test_outputs'
+    os.makedirs(model_test_dir, exist_ok=True)
+
+    one_day_train_df, one_day_test_df = create_one_day_data(train_path, test_path, model_data_dir)
+    one_day_full_df = pd.concat([one_day_train_df, one_day_test_df], axis=0)
+    plot_one_day_data(one_day_full_df, model_data_dir)
+
+    fit_on_train_data(one_day_train_df.drop(columns=['death']), one_day_train_df['death'],
+                      model_train_dir, -1, 'ONE_DAY_MODEL_TRAIN')
+    test_on_test_data(model_train_dir / 'best_model.pkl', one_day_test_df.drop(columns=['death']),
+                      one_day_test_df['death'], model_test_dir, 'ONE_DAY_MODEL_TEST')
 
 
 def main():
-    os.makedirs(ONE_DAY_MODEL_DIR, exist_ok=True)
-    os.makedirs(ONE_DAY_MODEL_DATA_DIR, exist_ok=True)
-    os.makedirs(ONE_DAY_MODEL_TRAIN_OUTPUTS_DIR, exist_ok=True)
-    os.makedirs(ONE_DAY_MODEL_TEST_OUTPUTS_DIR, exist_ok=True)
-
-    one_day_train_df, one_day_test_df = create_one_day_data()
-    one_day_full_df = pd.concat([one_day_train_df, one_day_test_df], axis=0)
-    plot_one_day_data(one_day_full_df)
-
-    fit_on_train_data(one_day_train_df[['temperature', 'salinity']], one_day_train_df['death'],
-                      ONE_DAY_MODEL_TRAIN_OUTPUTS_DIR, -1, 'ONE_DAY_MODEL_TRAIN')
-    test_on_test_data(ONE_DAY_MODEL_TRAIN_OUTPUTS_DIR / 'best_model.pkl', one_day_test_df[['temperature', 'salinity']],
-                      one_day_test_df['death'], ONE_DAY_MODEL_TEST_OUTPUTS_DIR, 'ONE_DAY_MODEL_TEST')
+    run_analysis(TRAIN_INCLUDE_SUSPECTED_PATH, TEST_INCLUDE_SUSPECTED_PATH, OUTPUTS_INCLUDE_SUSPECTED_DIR / 'one_day_model')
+    run_analysis(TRAIN_EXCLUDE_SUSPECTED_PATH, TEST_EXCLUDE_SUSPECTED_PATH, OUTPUTS_EXCLUDE_SUSPECTED_DIR / 'one_day_model')
 
 
 if __name__ == '__main__':
