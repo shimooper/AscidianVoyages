@@ -43,11 +43,11 @@ def convert_routes_to_one_day_data(df):
 def create_one_day_data():
     train_df = pd.read_csv(TRAIN_PATH)
     one_day_train_df = convert_routes_to_one_day_data(train_df)
-    one_day_train_df.to_csv(ONE_DAY_MODEL_DATA_DIR / 'one_day_train_data.csv', index=False)
+    one_day_train_df.to_csv(ONE_DAY_MODEL_DATA_DIR / 'train.csv', index=False)
 
     test_df = pd.read_csv(TEST_PATH)
     one_day_test_df = convert_routes_to_one_day_data(test_df)
-    one_day_test_df.to_csv(ONE_DAY_MODEL_DATA_DIR / 'one_day_test_data.csv', index=False)
+    one_day_test_df.to_csv(ONE_DAY_MODEL_DATA_DIR / 'test.csv', index=False)
 
     return one_day_train_df, one_day_test_df
 

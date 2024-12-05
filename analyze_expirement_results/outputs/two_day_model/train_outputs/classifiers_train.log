@@ -1,0 +1,4 @@
+2024-12-05 11:55:34,701 - TWO_DAY_MODEL_TRAIN - INFO - Training Classifier RandomForestClassifier with hyperparameters tuning using Stratified-KFold CV.
+2024-12-05 11:55:49,726 - TWO_DAY_MODEL_TRAIN - INFO - Best params: {'bootstrap': False, 'class_weight': None, 'max_depth': None, 'min_samples_leaf': 1, 'min_samples_split': 10, 'n_estimators': 20, 'random_state': 42}, Best index: 149, Best score: 0.6011611683925475
+2024-12-05 11:55:49,727 - TWO_DAY_MODEL_TRAIN - INFO - Best estimator - Mean MCC on train folds: 0.6725778632767379, Mean AUPRC on train folds: 0.8524617544863823, Mean F1 on train fold: 0.6462222081693616, Mean MCC on held-out folds: 0.6011611683925475, Mean AUPRC on held-out folds: 0.42849394956880416, Mean F1 o held-out folds: 0.5700280112044818
+2024-12-05 11:55:50,689 - TWO_DAY_MODEL_TRAIN - INFO - Best classifier (according to mean_mcc_on_held_out_folds): RandomForestClassifier
