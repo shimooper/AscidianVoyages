@@ -13,10 +13,10 @@ knn_grid = {
 }
 
 logistic_regression_grid = {
-    'solver': ['liblinear', 'saga'],
-    'penalty': ['l1', 'l2', 'elasticnet', 'none'],
+    'solver': ['liblinear'],
+    'penalty': ['l1', 'l2'],
     'C': [0.01, 0.1, 1, 10, 100],
-    'max_iter': [500],
+    'max_iter': [5000],
     'random_state': [RANDOM_STATE],
     'class_weight': ['balanced', None],
 }
@@ -52,8 +52,8 @@ gbc_grid = {
 
 
 classifiers = [
-    (KNeighborsClassifier(), knn_grid),
-    (LogisticRegression(), logistic_regression_grid),
+    # (KNeighborsClassifier(), knn_grid),
+    # (LogisticRegression(), logistic_regression_grid),
     # (MLPClassifier(), mlp_grid),
     (RandomForestClassifier(), rfc_grid),
     # (GradientBoostingClassifier(), gbc_grid),

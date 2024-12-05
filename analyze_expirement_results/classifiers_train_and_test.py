@@ -1,19 +1,18 @@
 import joblib
 import pandas as pd
-import os
 import json
-
 import numpy as np
 import sklearn
 from sklearn.model_selection import GridSearchCV
-from sklearn.metrics import make_scorer, matthews_corrcoef
+from sklearn.metrics import make_scorer, matthews_corrcoef, average_precision_score, f1_score
+import matplotlib.pyplot as plt
 
 from classifiers_params_grids import classifiers
 from utils import setup_logger
 
 
 def fit_on_train_data(Xs_train, Ys_train, output_dir, n_jobs, logger_name):
-    logger = setup_logger(os.path.join(output_dir, 'classifier_training.log'), logger_name)
+    logger = setup_logger(output_dir / 'classifiers_train.log', logger_name)
 
     best_classifiers = {}
     best_classifiers_metrics = {}
@@ -33,16 +32,16 @@ def fit_on_train_data(Xs_train, Ys_train, output_dir, n_jobs, logger_name):
         try:
             grid.fit(Xs_train, Ys_train)
             grid_results = pd.DataFrame.from_dict(grid.cv_results_)
-            grid_results.to_csv(os.path.join(output_dir, f'{class_name}_grid_results.csv'))
+            grid_results.to_csv(output_dir / f'{class_name}_grid_results.csv')
             best_classifiers[class_name] = grid.best_estimator_
-            joblib.dump(grid.best_estimator_, os.path.join(output_dir, f"best_{class_name}.pkl"))
+            joblib.dump(grid.best_estimator_, output_dir / f"best_{class_name}.pkl")
 
             # Note: grid.best_score_ == grid_results['mean_test_mcc'][grid.best_index_] (the mean cross-validated score of the best_estimator)
             logger.info(f"Best params: {grid.best_params_}, Best index: {grid.best_index_}, Best score: {grid.best_score_}")
 
             logger.info(f"Best estimator - Mean MCC on train folds: {grid_results['mean_train_mcc'][grid.best_index_]}, "
                          f"Mean AUPRC on train folds: {grid_results['mean_train_auprc'][grid.best_index_]}, "
-                         f"Mean F1 on train fold: {grid_results['mean_train_f1'][grid.best_index_]}"
+                         f"Mean F1 on train fold: {grid_results['mean_train_f1'][grid.best_index_]}, "
                          f"Mean MCC on held-out folds: {grid_results['mean_test_mcc'][grid.best_index_]}, "
                          f"Mean AUPRC on held-out folds: {grid_results['mean_test_auprc'][grid.best_index_]}, "
                          f"Mean F1 o held-out folds: {grid_results['mean_test_f1'][grid.best_index_]}")
@@ -54,6 +53,9 @@ def fit_on_train_data(Xs_train, Ys_train, output_dir, n_jobs, logger_name):
                                                     grid.best_score_,
                                                     grid_results['mean_test_auprc'][grid.best_index_],
                                                     grid_results['mean_test_f1'][grid.best_index_])
+
+            plot_feature_importance(class_name, Xs_train.columns, grid.best_estimator_.feature_importances_, output_dir)
+
         except Exception as e:
             logger.error(f"Failed to train classifier {class_name} with error: {e}")
 
@@ -63,13 +65,13 @@ def fit_on_train_data(Xs_train, Ys_train, output_dir, n_jobs, logger_name):
                                                           'mean_mcc_on_held_out_folds', 'mean_auprc_on_held_out_folds',
                                                           'mean_f1_on_held_out_folds'])
     best_classifiers_df.index.name = 'classifier_class'
-    best_classifiers_df.to_csv(os.path.join(output_dir, 'best_classifier_from_each_class.csv'))
+    best_classifiers_df.to_csv(output_dir / 'best_classifier_from_each_class.csv')
 
     best_classifier_class = best_classifiers_df['mean_mcc_on_held_out_folds'].idxmax()
     logger.info(f"Best classifier (according to mean_mcc_on_held_out_folds): {best_classifier_class}")
 
     # Save the best classifier to disk
-    joblib.dump(best_classifiers[best_classifier_class], os.path.join(output_dir, "best_model.pkl"))
+    joblib.dump(best_classifiers[best_classifier_class], output_dir / "best_model.pkl")
 
     # Save metadata
     metadata = {
@@ -78,8 +80,34 @@ def fit_on_train_data(Xs_train, Ys_train, output_dir, n_jobs, logger_name):
         'sklearn_version': sklearn.__version__,
         'pandas_version': pd.__version__,
     }
-    with open(os.path.join(output_dir, 'model_metadata.json'), 'w') as f:
+    with open(output_dir / 'model_metadata.json', 'w') as f:
         json.dump(metadata, f)
 
     best_classifier_metrics = best_classifiers_df.loc[[best_classifier_class]].reset_index()
-    best_classifier_metrics.to_csv(os.path.join(output_dir, 'best_classifier_train_results.csv'), index=False)
+    best_classifier_metrics.to_csv(output_dir / 'best_classifier_train_results.csv', index=False)
+
+
+def plot_feature_importance(model_name, feature_names, features_importance, output_dir):
+    indices = np.argsort(features_importance)[::-1]
+    plt.figure(figsize=(10, 6))
+    plt.title("Feature Importance")
+    plt.bar(list(range(len(feature_names))), features_importance[indices], align="center")
+    plt.xticks(list(range(len(feature_names))), [feature_names[i] for i in indices], rotation=45, ha="right")
+    plt.tight_layout()
+    plt.savefig(output_dir / f'{model_name}_feature_importance.png', dpi=600)
+    plt.close()
+
+
+def test_on_test_data(model_path, Xs_test, Ys_test, output_dir, logger_name):
+    logger = setup_logger(output_dir / 'classifiers_test.log', logger_name)
+
+    model = joblib.load(model_path)
+    Ys_test_predictions = model.predict_proba(Xs_test)
+    mcc_on_test = matthews_corrcoef(Ys_test, Ys_test_predictions.argmax(axis=1))
+    auprc_on_test = average_precision_score(Ys_test, Ys_test_predictions[:, 1])
+    f1_on_test = f1_score(Ys_test, Ys_test_predictions.argmax(axis=1))
+
+    logger.info(f"Best estimator - MCC on test: {mcc_on_test}, AUPRC on test: {auprc_on_test}, F1 on test: {f1_on_test}")
+
+    test_results = pd.DataFrame({'mcc': [mcc_on_test], 'auprc': [auprc_on_test], 'f1': [f1_on_test]})
+    test_results.to_csv(output_dir / 'best_classifier_test_results.csv', index=False)

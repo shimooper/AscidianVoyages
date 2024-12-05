@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from utils import TRAIN_PATH, TEST_PATH, OUTPUTS_DIR
-from classifiers_train_and_test import fit_on_train_data
+from classifiers_train_and_test import fit_on_train_data, test_on_test_data
 
 ONE_DAY_MODEL_DIR = OUTPUTS_DIR / 'one_day_model'
 ONE_DAY_MODEL_DATA_DIR = ONE_DAY_MODEL_DIR / 'data'
@@ -75,6 +75,8 @@ def main():
 
     fit_on_train_data(one_day_train_df[['temperature', 'salinity']], one_day_train_df['death'],
                       ONE_DAY_MODEL_TRAIN_OUTPUTS_DIR, -1, 'ONE_DAY_MODEL_TRAIN')
+    test_on_test_data(ONE_DAY_MODEL_TRAIN_OUTPUTS_DIR / 'best_model.pkl', one_day_test_df[['temperature', 'salinity']],
+                      one_day_test_df['death'], ONE_DAY_MODEL_TEST_OUTPUTS_DIR, 'ONE_DAY_MODEL_TEST')
 
 
 if __name__ == '__main__':
