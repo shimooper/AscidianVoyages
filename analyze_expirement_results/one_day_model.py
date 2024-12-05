@@ -16,13 +16,6 @@ def convert_routes_to_one_day_data(df):
     one_day_data = []
     for idx, row in df.iterrows():
         for lived_col, temp_col, salinity_col in zip(lived_columns, temperature_columns, salinity_columns):
-            if pd.isna(row[lived_col]) or pd.isna(row[temp_col]) or pd.isna(row[salinity_col]):
-                if pd.isna(row[lived_col]) and pd.isna(row[temp_col]) and pd.isna(row[salinity_col]):
-                    continue
-                else:
-                    raise ValueError(f'Row {idx} contains NaN values in some but not all of the columns: '
-                                     f'{lived_col}, {temp_col}, {salinity_col}')
-
             one_day_data.append({
                 'temperature': row[temp_col],
                 'salinity': row[salinity_col],

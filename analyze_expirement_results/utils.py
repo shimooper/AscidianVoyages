@@ -6,8 +6,6 @@ import logging
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR / 'data'
 DATA_PATH = DATA_DIR / 'Final_Data_Voyages.xlsx'
-DATA_PROCESSED_PATH = DATA_DIR / 'Final_Data_Voyages_Processed.csv'
-DATA_PROCESSED_EXCLUDE_CONTROL_PATH = DATA_DIR / 'Final_Data_Voyages_Processed_Exclude_Control.csv'
 
 
 # The data I refer to from now on is always excluding the CONTROL routes
@@ -25,12 +23,9 @@ TEST_EXCLUDE_SUSPECTED_PATH = DATA_PROCESSED_EXCLUDE_SUSPECTED_DIR / 'test.csv'
 
 OUTPUTS_DIR = SCRIPT_DIR / 'outputs'
 OUTPUTS_INCLUDE_SUSPECTED_DIR = OUTPUTS_DIR / 'include_suspected'
-os.makedirs(OUTPUTS_INCLUDE_SUSPECTED_DIR, exist_ok=True)
 OUTPUTS_EXCLUDE_SUSPECTED_DIR = OUTPUTS_DIR / 'exclude_suspected'
-os.makedirs(OUTPUTS_EXCLUDE_SUSPECTED_DIR, exist_ok=True)
 
 RANDOM_STATE = 42
-TEST_SET_SIZE = 0.25
 
 
 def variable_equals_value(variable, value):
