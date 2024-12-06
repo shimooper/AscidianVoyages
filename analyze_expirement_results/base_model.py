@@ -20,6 +20,8 @@ class BaseModel:
 
         self.output_dir_path = all_outputs_dir_path / model_name
         self.model_data_dir = self.output_dir_path / 'data'
+        self.model_train_set_path = self.model_data_dir / 'train.csv'
+        self.model_test_set_path = self.model_data_dir / 'test.csv'
         self.model_train_dir = self.output_dir_path / 'train_outputs'
         self.model_test_dir = self.output_dir_path / 'test_outputs'
         os.makedirs(self.output_dir_path, exist_ok=True)
@@ -33,11 +35,11 @@ class BaseModel:
     def create_model_data(self):
         train_df = pd.read_csv(self.train_file_path)
         model_train_df = self.convert_routes_to_model_data(train_df)
-        model_train_df.to_csv(self.model_data_dir / 'train.csv', index=False)
+        model_train_df.to_csv(self.model_train_set_path, index=False)
 
         test_df = pd.read_csv(self.test_file_path)
         model_test_df = self.convert_routes_to_model_data(test_df)
-        model_test_df.to_csv(self.model_data_dir / 'test.csv', index=False)
+        model_test_df.to_csv(self.model_test_set_path, index=False)
 
         return model_train_df, model_test_df
 

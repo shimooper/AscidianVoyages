@@ -12,7 +12,7 @@ DATA_PROCESSED_EXCLUDE_CONTROL_PATH = DATA_DIR / 'Final_Data_Voyages_Processed_E
 TEST_SET_SIZE = 0.25
 
 
-def main():
+def preprocess_data():
     logger = setup_logger(DATA_DIR / 'preprocess.log', 'PREPROCESS')
 
     df = pd.read_excel(DATA_PATH, sheet_name='final_data')
@@ -116,7 +116,3 @@ def remove_suspected_routes_parts(df, lived_columns, temperature_columns, salini
                 df.loc[idx, col] = pd.NA
 
     df.to_csv(output_path, index=False)
-
-
-if __name__ == '__main__':
-    main()
