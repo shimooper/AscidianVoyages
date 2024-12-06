@@ -17,6 +17,9 @@ class OneDayModel(BaseModel):
         one_day_data = []
         for idx, row in df.iterrows():
             for lived_col, temp_col, salinity_col in zip(lived_columns, temperature_columns, salinity_columns):
+                if pd.isna(row[lived_col]):  # When we reached the end of route, continue to next route
+                    break
+
                 one_day_data.append({
                     'temperature': row[temp_col],
                     'salinity': row[salinity_col],
