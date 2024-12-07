@@ -6,8 +6,8 @@ from base_model import BaseModel
 
 
 class OneDayModel(BaseModel):
-    def __init__(self, train_file_path, test_file_path, all_outputs_dir_path):
-        super().__init__('one_day_model', train_file_path, test_file_path, all_outputs_dir_path)
+    def __init__(self, all_outputs_dir_path):
+        super().__init__('one_day_model', all_outputs_dir_path)
 
     def convert_routes_to_model_data(self, df):
         lived_columns = sorted([col for col in df.columns if 'Lived' in col], key=lambda x: int(x.split()[1]))
@@ -45,6 +45,7 @@ class OneDayModel(BaseModel):
         plt.legend(title="Status")
         plt.grid(alpha=0.3)
         plt.savefig(self.model_data_dir / "scatter_plot.png", dpi=300, bbox_inches='tight')
+        plt.close()
 
     def run_analysis(self):
         super().run_analysis()

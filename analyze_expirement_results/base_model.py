@@ -16,12 +16,12 @@ from utils import setup_logger, convert_pascal_to_snake_case
 
 
 class BaseModel:
-    def __init__(self, model_name, train_file_path, test_file_path, all_outputs_dir_path):
+    def __init__(self, model_name, all_outputs_dir_path):
         self.model_name = model_name
-        self.train_file_path = train_file_path
-        self.test_file_path = test_file_path
+        self.train_file_path = all_outputs_dir_path / 'train.csv'
+        self.test_file_path = all_outputs_dir_path / 'test.csv'
 
-        self.output_dir_path = all_outputs_dir_path / model_name
+        self.output_dir_path = all_outputs_dir_path / 'models' / model_name
         self.model_data_dir = self.output_dir_path / 'data'
         self.model_train_set_path = self.model_data_dir / 'train.csv'
         self.model_test_set_path = self.model_data_dir / 'test.csv'
@@ -106,7 +106,8 @@ class BaseModel:
 
                 if class_name == 'DecisionTreeClassifier':
                     self.plot_decision_tree(grid.best_estimator_, Xs_train.columns, classifier_output_dir)
-                    self.plot_decision_functions_of_features_pairs(Xs_train, Ys_train, grid.best_params_, classifier_output_dir)
+                    if len(Xs_train.columns) >= 2:
+                        self.plot_decision_functions_of_features_pairs(Xs_train, Ys_train, grid.best_params_, classifier_output_dir)
 
             except Exception as e:
                 logger.error(f"Failed to train classifier {class_name} with error: {e}")

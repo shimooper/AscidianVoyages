@@ -1,19 +1,21 @@
+import os
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from utils import variable_equals_value, setup_logger, \
-    DATA_DIR, DATA_PATH, \
-    FULL_INCLUDE_SUSPECTED_PATH, TRAIN_INCLUDE_SUSPECTED_PATH, TEST_INCLUDE_SUSPECTED_PATH, \
-    FULL_EXCLUDE_SUSPECTED_PATH, TRAIN_EXCLUDE_SUSPECTED_PATH, TEST_EXCLUDE_SUSPECTED_PATH, \
-    RANDOM_STATE
+
+from utils import (variable_equals_value, setup_logger, DATA_PATH, OUTPUTS_DIR,
+                   OUTPUTS_INCLUDE_SUSPECTED_DIR, OUTPUTS_EXCLUDE_SUSPECTED_DIR, RANDOM_STATE,
+                   STRATIFY_TRAIN_TEST_SPLIT)
 
 
-DATA_PROCESSED_PATH = DATA_DIR / 'Final_Data_Voyages_Processed.csv'
-DATA_PROCESSED_EXCLUDE_CONTROL_PATH = DATA_DIR / 'Final_Data_Voyages_Processed_Exclude_Control.csv'
+OUTPUTS_PREPROCESS_DIR = OUTPUTS_DIR / 'preprocess'
+DATA_PROCESSED_PATH = OUTPUTS_PREPROCESS_DIR / 'Final_Data_Voyages_Processed.csv'
+DATA_PROCESSED_EXCLUDE_CONTROL_PATH = OUTPUTS_PREPROCESS_DIR / 'Final_Data_Voyages_Processed_Exclude_Control.csv'
 TEST_SET_SIZE = 0.25
 
 
 def preprocess_data():
-    logger = setup_logger(DATA_DIR / 'preprocess.log', 'PREPROCESS')
+    os.makedirs(OUTPUTS_PREPROCESS_DIR, exist_ok=True)
+    logger = setup_logger(OUTPUTS_PREPROCESS_DIR / 'preprocess.log', 'PREPROCESS')
 
     df = pd.read_excel(DATA_PATH, sheet_name='final_data')
 
@@ -41,10 +43,11 @@ def preprocess_data():
                 f"and {df_exclude_control['dying_day'].isna().sum()} did not.")
 
     # From now on, I refer only to the data excluding the CONTROL group
-    df_exclude_control.to_csv(FULL_INCLUDE_SUSPECTED_PATH, index=False)
-    create_train_test_splits(logger, df_exclude_control, TRAIN_INCLUDE_SUSPECTED_PATH, TEST_INCLUDE_SUSPECTED_PATH)
-    remove_suspected_routes_parts(df_exclude_control, lived_columns, temperature_columns, salinity_columns, FULL_EXCLUDE_SUSPECTED_PATH)
-    create_train_test_splits(logger, df_exclude_control, TRAIN_EXCLUDE_SUSPECTED_PATH, TEST_EXCLUDE_SUSPECTED_PATH)
+    df_exclude_control.to_csv(OUTPUTS_INCLUDE_SUSPECTED_DIR / 'full.csv', index=False)
+    create_train_test_splits(logger, df_exclude_control, OUTPUTS_INCLUDE_SUSPECTED_DIR)
+    remove_suspected_routes_parts(df_exclude_control, lived_columns, temperature_columns, salinity_columns,
+                                  OUTPUTS_EXCLUDE_SUSPECTED_DIR / 'full.csv')
+    create_train_test_splits(logger, df_exclude_control, OUTPUTS_EXCLUDE_SUSPECTED_DIR)
 
 
 def replace_lived_indicators(df, lived_columns):
@@ -96,10 +99,15 @@ def add_dying_day(df, lived_columns, temperature_columns, salinity_columns):
                                      f'{lived_col}, {temp_col}, {salinity_col}')
 
 
-def create_train_test_splits(logger, df, train_path, test_path):
-    train_df, test_df = train_test_split(df, test_size=TEST_SET_SIZE, random_state=RANDOM_STATE, stratify=df['stratify_group'])
-    train_df.to_csv(train_path, index=False)
-    test_df.to_csv(test_path, index=False)
+def create_train_test_splits(logger, df, output_dir):
+    if STRATIFY_TRAIN_TEST_SPLIT:
+        stratify = df['stratify_group']
+    else:
+        stratify = None
+
+    train_df, test_df = train_test_split(df, test_size=TEST_SET_SIZE, random_state=RANDOM_STATE, stratify=stratify)
+    train_df.to_csv(output_dir / 'train.csv', index=False)
+    test_df.to_csv(output_dir / 'test.csv', index=False)
     logger.info(f"Train set has {len(train_df)} routes and test set has {len(test_df)} routes.")
 
 

@@ -34,8 +34,10 @@ def plot_timeline(routes_path, condition_label, condition_full_name, y_axis_labe
 
     os.makedirs(output_dir, exist_ok=True)
     fig.savefig(output_dir / f'routes_timeline_{condition_full_name.lower()}', dpi=300)
+    plt.close()
 
 
-def plot_timelines(routes_path, output_dir):
+def plot_timelines(output_dir):
+    routes_path = output_dir / 'full.csv'
     plot_timeline(routes_path, 'Temp', 'Temperature', 'Temperature (celsius)', output_dir / 'routes_visualizations')
     plot_timeline(routes_path, 'Salinity', 'Salinity', 'Salinity (ppt)', output_dir / 'routes_visualizations')
