@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 import pandas as pd
 import logging
+import re
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR / 'data'
@@ -55,3 +56,8 @@ def setup_logger(log_file, logger_name, level=logging.INFO):
     logger.addHandler(file_handler)
 
     return logger
+
+
+def convert_pascal_to_snake_case(name):
+    # Convert PascalCase to snake_case
+    return re.sub(r'(?<!^)(?=[A-Z])', '_', name).lower()

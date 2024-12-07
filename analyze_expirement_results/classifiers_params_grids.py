@@ -2,6 +2,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.neural_network import MLPClassifier
+from sklearn.tree import DecisionTreeClassifier
 
 from utils import RANDOM_STATE
 
@@ -50,6 +51,14 @@ gbc_grid = {
     'subsample': [0.6, 1],
 }
 
+decision_tree_grid = {
+    'max_depth': [None, 3, 5, 10],
+    'min_samples_split': [2, 5, 10],
+    'min_samples_leaf': [1, 2, 5],
+    'random_state': [RANDOM_STATE],
+    'class_weight': ['balanced', None],
+}
+
 
 classifiers = [
     # (KNeighborsClassifier(), knn_grid),
@@ -57,4 +66,5 @@ classifiers = [
     # (MLPClassifier(), mlp_grid),
     (RandomForestClassifier(), rfc_grid),
     # (GradientBoostingClassifier(), gbc_grid),
+    (DecisionTreeClassifier(), decision_tree_grid)
 ]

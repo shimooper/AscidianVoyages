@@ -1,3 +1,4 @@
+import itertools
 import os
 import joblib
 import pandas as pd
@@ -6,10 +7,12 @@ import numpy as np
 import sklearn
 from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import make_scorer, matthews_corrcoef, average_precision_score, f1_score
+from sklearn.tree import DecisionTreeClassifier, plot_tree
+from sklearn.inspection import DecisionBoundaryDisplay
 import matplotlib.pyplot as plt
 
 from classifiers_params_grids import classifiers
-from utils import setup_logger
+from utils import setup_logger, convert_pascal_to_snake_case
 
 
 class BaseModel:
@@ -57,6 +60,8 @@ class BaseModel:
         best_classifiers_metrics = {}
         for classifier, param_grid in classifiers:
             class_name = classifier.__class__.__name__
+            classifier_output_dir = self.model_train_dir / convert_pascal_to_snake_case(class_name)
+            os.makedirs(classifier_output_dir, exist_ok=True)
             logger.info(f"Training Classifier {class_name} with hyperparameters tuning using Stratified-KFold CV.")
             grid = GridSearchCV(
                 estimator=classifier,
@@ -71,9 +76,9 @@ class BaseModel:
             try:
                 grid.fit(Xs_train, Ys_train)
                 grid_results = pd.DataFrame.from_dict(grid.cv_results_)
-                grid_results.to_csv(self.model_train_dir / f'{class_name}_grid_results.csv')
+                grid_results.to_csv(classifier_output_dir / f'{class_name}_grid_results.csv')
                 best_classifiers[class_name] = grid.best_estimator_
-                joblib.dump(grid.best_estimator_, self.model_train_dir / f"best_{class_name}.pkl")
+                joblib.dump(grid.best_estimator_, classifier_output_dir / f"best_{class_name}.pkl")
 
                 # Note: grid.best_score_ == grid_results['mean_test_mcc'][grid.best_index_] (the mean cross-validated score of the best_estimator)
                 logger.info(
@@ -95,7 +100,13 @@ class BaseModel:
                                                         grid_results['mean_test_auprc'][grid.best_index_],
                                                         grid_results['mean_test_f1'][grid.best_index_])
 
-                self.plot_feature_importance(class_name, Xs_train.columns, grid.best_estimator_.feature_importances_)
+                if class_name in ['DecisionTreeClassifier', 'RandomForestClassifier', 'GradientBoostingClassifier']:
+                    self.plot_feature_importance(class_name, Xs_train.columns,
+                                                 grid.best_estimator_.feature_importances_, classifier_output_dir)
+
+                if class_name == 'DecisionTreeClassifier':
+                    self.plot_decision_tree(grid.best_estimator_, Xs_train.columns, classifier_output_dir)
+                    self.plot_decision_functions_of_features_pairs(Xs_train, Ys_train, grid.best_params_, classifier_output_dir)
 
             except Exception as e:
                 logger.error(f"Failed to train classifier {class_name} with error: {e}")
@@ -128,14 +139,68 @@ class BaseModel:
         best_classifier_metrics = best_classifiers_df.loc[[best_classifier_class]].reset_index()
         best_classifier_metrics.to_csv(self.model_train_dir / 'best_classifier_train_results.csv', index=False)
 
-    def plot_feature_importance(self, classifier_name, feature_names, features_importance):
+    def plot_feature_importance(self, classifier_name, feature_names, features_importance, output_dir):
         indices = np.argsort(features_importance)[::-1]
         plt.figure(figsize=(10, 6))
         plt.title("Feature Importance")
         plt.bar(list(range(len(feature_names))), features_importance[indices], align="center")
         plt.xticks(list(range(len(feature_names))), [feature_names[i] for i in indices], rotation=45, ha="right")
         plt.tight_layout()
-        plt.savefig(self.model_train_dir / f'{classifier_name}_feature_importance.png', dpi=600)
+        plt.savefig(output_dir / f'{classifier_name}_feature_importance.png', dpi=600)
+        plt.close()
+
+    def plot_decision_tree(self, model, feature_names, output_dir):
+        plt.figure(figsize=(18, 12))
+        plot_tree(
+            model,
+            feature_names=feature_names,  # Custom feature names
+            class_names=["Alive", "Death"],  # Class names
+            filled=True,  # Color nodes by class
+            rounded=True,  # Rounded corners
+            fontsize=10  # Font size
+        )
+        plt.savefig(output_dir / 'DecisionTreeClassifier_plot.png', dpi=600)
+        plt.close()
+
+    def plot_decision_functions_of_features_pairs(self, Xs_train, Ys_train, best_params, output_dir):
+        n_classes = 2
+        plot_colors = "gr"
+        plot_step = 0.02
+
+        for pairidx, pair in enumerate(itertools.combinations(Xs_train.columns, 2)):
+            # We only take the two corresponding features
+            X = Xs_train[list(pair)]
+            # Train
+            clf = DecisionTreeClassifier(**best_params).fit(X, Ys_train)
+
+            # Plot the decision boundary
+            ax = plt.subplot(2, 3, pairidx + 1)
+            plt.tight_layout(h_pad=0.5, w_pad=0.5, pad=2.5)
+            DecisionBoundaryDisplay.from_estimator(
+                clf,
+                X,
+                cmap=plt.cm.RdYlBu,
+                response_method="predict",
+                ax=ax,
+                xlabel=pair[0],
+                ylabel=pair[1],
+            )
+
+            # Plot the training points
+            for i, color in zip(range(n_classes), plot_colors):
+                plt.scatter(
+                    X.loc[Ys_train[Ys_train == i].index, X.columns[0]],
+                    X.loc[Ys_train[Ys_train == i].index, X.columns[1]],
+                    c=color,
+                    label='Alive' if i == 0 else 'Death',
+                    edgecolor="black",
+                    s=15,
+                )
+
+        plt.suptitle("Decision surface of decision trees trained on pairs of features")
+        plt.legend(loc="lower right", borderpad=0, handletextpad=0)
+        _ = plt.axis("tight")
+        plt.savefig(output_dir / 'decision_functions_on_features_pairs_plot.png', dpi=600)
         plt.close()
 
     def test_on_test_data(self, model_path, Xs_test, Ys_test):
