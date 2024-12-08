@@ -2,20 +2,13 @@ import os
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-from utils import (variable_equals_value, setup_logger, DATA_PATH, OUTPUTS_DIR,
-                   OUTPUTS_INCLUDE_SUSPECTED_DIR, OUTPUTS_EXCLUDE_SUSPECTED_DIR, RANDOM_STATE,
-                   STRATIFY_TRAIN_TEST_SPLIT)
+from utils import (variable_equals_value, setup_logger, DATA_PATH, TEST_SET_SIZE)
 
 
-OUTPUTS_PREPROCESS_DIR = OUTPUTS_DIR / 'preprocess'
-DATA_PROCESSED_PATH = OUTPUTS_PREPROCESS_DIR / 'Final_Data_Voyages_Processed.csv'
-DATA_PROCESSED_EXCLUDE_CONTROL_PATH = OUTPUTS_PREPROCESS_DIR / 'Final_Data_Voyages_Processed_Exclude_Control.csv'
-TEST_SET_SIZE = 0.25
-
-
-def preprocess_data():
-    os.makedirs(OUTPUTS_PREPROCESS_DIR, exist_ok=True)
-    logger = setup_logger(OUTPUTS_PREPROCESS_DIR / 'preprocess.log', 'PREPROCESS')
+def preprocess_data(outputs_dir, outputs_include_suspected_dir, outputs_exclude_suspected_dir, stratify_flag, random_state):
+    outputs_preprocess_dir = outputs_dir / 'preprocess'
+    os.makedirs(outputs_preprocess_dir, exist_ok=True)
+    logger = setup_logger(outputs_preprocess_dir / 'preprocess.log', 'PREPROCESS')
 
     df = pd.read_excel(DATA_PATH, sheet_name='final_data')
 
@@ -33,21 +26,23 @@ def preprocess_data():
 
     df['stratify_group'] = df['Season'] + '_' + df['dying_day'].notna().astype(int).astype(str)
 
-    df.to_csv(DATA_PROCESSED_PATH, index=False)
+    data_processed_path = outputs_preprocess_dir / 'Final_Data_Voyages_Processed.csv'
+    df.to_csv(data_processed_path, index=False)
 
     df_exclude_control = df[df['Name'] != 'CONTROL']
-    df_exclude_control.to_csv(DATA_PROCESSED_EXCLUDE_CONTROL_PATH, index=False)
+    data_processed_exclude_control_path = outputs_preprocess_dir / 'Final_Data_Voyages_Processed_Exclude_Control.csv'
+    df_exclude_control.to_csv(data_processed_exclude_control_path, index=False)
     logger.info(f"Originally there were {len(df)} rows in the dataset. "
                 f"After removing the CONTROL group, there are {len(df_exclude_control)} rows. "
                 f"Of which, {df_exclude_control['dying_day'].notna().sum()} ended with death "
                 f"and {df_exclude_control['dying_day'].isna().sum()} did not.")
 
     # From now on, I refer only to the data excluding the CONTROL group
-    df_exclude_control.to_csv(OUTPUTS_INCLUDE_SUSPECTED_DIR / 'full.csv', index=False)
-    create_train_test_splits(logger, df_exclude_control, OUTPUTS_INCLUDE_SUSPECTED_DIR)
+    df_exclude_control.to_csv(outputs_include_suspected_dir / 'full.csv', index=False)
+    create_train_test_splits(logger, df_exclude_control, outputs_include_suspected_dir, stratify_flag, random_state)
     remove_suspected_routes_parts(df_exclude_control, lived_columns, temperature_columns, salinity_columns,
-                                  OUTPUTS_EXCLUDE_SUSPECTED_DIR / 'full.csv')
-    create_train_test_splits(logger, df_exclude_control, OUTPUTS_EXCLUDE_SUSPECTED_DIR)
+                                  outputs_exclude_suspected_dir / 'full.csv')
+    create_train_test_splits(logger, df_exclude_control, outputs_exclude_suspected_dir, stratify_flag, random_state)
 
 
 def replace_lived_indicators(df, lived_columns):
@@ -99,13 +94,13 @@ def add_dying_day(df, lived_columns, temperature_columns, salinity_columns):
                                      f'{lived_col}, {temp_col}, {salinity_col}')
 
 
-def create_train_test_splits(logger, df, output_dir):
-    if STRATIFY_TRAIN_TEST_SPLIT:
+def create_train_test_splits(logger, df, output_dir, stratify_flag, random_state):
+    if stratify_flag:
         stratify = df['stratify_group']
     else:
         stratify = None
 
-    train_df, test_df = train_test_split(df, test_size=TEST_SET_SIZE, random_state=RANDOM_STATE, stratify=stratify)
+    train_df, test_df = train_test_split(df, test_size=TEST_SET_SIZE, random_state=random_state, stratify=stratify)
     train_df.to_csv(output_dir / 'train.csv', index=False)
     test_df.to_csv(output_dir / 'test.csv', index=False)
     logger.info(f"Train set has {len(train_df)} routes and test set has {len(test_df)} routes.")

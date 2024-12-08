@@ -1,0 +1,3 @@
+classifier_class,best_index,mean_mcc_on_train_folds,mean_auprc_on_train_folds,mean_f1_on_train_folds,mean_mcc_on_held_out_folds,mean_auprc_on_held_out_folds,mean_f1_on_held_out_folds
+RandomForestClassifier,162,0.7070372109103016,0.6513975442755182,0.6812508844894555,0.6679993800864861,0.5303832699337154,0.6212641898864809
+DecisionTreeClassifier,50,0.6710902924658712,0.5564754995312384,0.63125,0.646957013082013,0.5043069848672653,0.6012698412698413

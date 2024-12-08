@@ -4,8 +4,8 @@ from base_model import BaseModel
 
 
 class OneDayOnlyTemperatureModel(BaseModel):
-    def __init__(self, all_outputs_dir_path):
-        super().__init__('one_day_only_temperature_model', all_outputs_dir_path)
+    def __init__(self, all_outputs_dir_path, metric_to_choose_best_model, random_state, model_id):
+        super().__init__('one_day_only_temperature_model', all_outputs_dir_path, metric_to_choose_best_model, random_state, model_id)
 
     def convert_routes_to_model_data(self, df):
         lived_columns = sorted([col for col in df.columns if 'Lived' in col], key=lambda x: int(x.split()[1]))

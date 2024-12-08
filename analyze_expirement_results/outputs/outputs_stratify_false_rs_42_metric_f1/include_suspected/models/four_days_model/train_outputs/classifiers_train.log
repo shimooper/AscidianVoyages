@@ -1,0 +1,8 @@
+2024-12-08 11:05:28,744 - MODEL_68_TRAIN - INFO - Training Classifier RandomForestClassifier with hyperparameters tuning using Stratified-KFold CV.
+2024-12-08 11:05:49,242 - MODEL_68_TRAIN - INFO - Best params: {'bootstrap': False, 'class_weight': None, 'max_depth': 3, 'min_samples_leaf': 2, 'min_samples_split': 5, 'n_estimators': 20, 'random_state': 42}, Best index: 364, Best score: 0.4887230416642182
+2024-12-08 11:05:49,243 - MODEL_68_TRAIN - INFO - Best estimator - Mean MCC on train folds: 0.5673151944670007, Mean AUPRC on train folds: 0.48325468111074804, Mean F1 on train fold: 0.4950180072028812, Mean MCC on held-out folds: 0.5419083485289481, Mean AUPRC on held-out folds: 0.3826537411163237, Mean F1 o held-out folds: 0.4887230416642182
+2024-12-08 11:05:50,130 - MODEL_68_TRAIN - INFO - Training Classifier DecisionTreeClassifier with hyperparameters tuning using Stratified-KFold CV.
+2024-12-08 11:05:50,718 - MODEL_68_TRAIN - INFO - Best params: {'class_weight': None, 'max_depth': 3, 'min_samples_leaf': 1, 'min_samples_split': 2, 'random_state': 42}, Best index: 45, Best score: 0.44793872793872797
+2024-12-08 11:05:50,719 - MODEL_68_TRAIN - INFO - Best estimator - Mean MCC on train folds: 0.5947387580466597, Mean AUPRC on train folds: 0.4176388039214364, Mean F1 on train fold: 0.5304802071772106, Mean MCC on held-out folds: 0.5014972795616272, Mean AUPRC on held-out folds: 0.3358662699028297, Mean F1 o held-out folds: 0.44793872793872797
+2024-12-08 11:05:56,768 - MODEL_68_TRAIN - ERROR - Failed to train classifier DecisionTreeClassifier with error: num must be an integer with 1 <= num <= 6, not 7
+2024-12-08 11:05:56,776 - MODEL_68_TRAIN - INFO - Best classifier (according to mean_f1_on_held_out_folds): RandomForestClassifier

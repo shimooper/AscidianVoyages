@@ -4,20 +4,25 @@ import joblib
 import pandas as pd
 import json
 import numpy as np
+import matplotlib.pyplot as plt
+
 import sklearn
 from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import make_scorer, matthews_corrcoef, average_precision_score, f1_score
 from sklearn.tree import DecisionTreeClassifier, plot_tree
 from sklearn.inspection import DecisionBoundaryDisplay
-import matplotlib.pyplot as plt
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.neural_network import MLPClassifier
 
-from classifiers_params_grids import classifiers
 from utils import setup_logger, convert_pascal_to_snake_case
 
 
 class BaseModel:
-    def __init__(self, model_name, all_outputs_dir_path):
+    def __init__(self, model_name, all_outputs_dir_path, metric_to_choose_best_model, random_state, model_id):
         self.model_name = model_name
+        self.metric_to_choose_best_model = metric_to_choose_best_model
         self.train_file_path = all_outputs_dir_path / 'train.csv'
         self.test_file_path = all_outputs_dir_path / 'test.csv'
 
@@ -31,6 +36,9 @@ class BaseModel:
         os.makedirs(self.model_data_dir, exist_ok=True)
         os.makedirs(self.model_train_dir, exist_ok=True)
         os.makedirs(self.model_test_dir, exist_ok=True)
+
+        self.create_classifiers_and_param_grids(random_state)
+        self.model_id = model_id
 
     def convert_routes_to_model_data(self, df):
         raise NotImplementedError
@@ -54,11 +62,11 @@ class BaseModel:
                                model_test_df['death'])
 
     def fit_on_train_data(self, Xs_train, Ys_train, n_jobs):
-        logger = setup_logger(self.model_train_dir / 'classifiers_train.log', f'{self.model_name.upper()}_TRAIN')
+        logger = setup_logger(self.model_train_dir / 'classifiers_train.log', f'MODEL_{self.model_id}_TRAIN')
 
         best_classifiers = {}
         best_classifiers_metrics = {}
-        for classifier, param_grid in classifiers:
+        for classifier, param_grid in self.classifiers:
             class_name = classifier.__class__.__name__
             classifier_output_dir = self.model_train_dir / convert_pascal_to_snake_case(class_name)
             os.makedirs(classifier_output_dir, exist_ok=True)
@@ -67,7 +75,7 @@ class BaseModel:
                 estimator=classifier,
                 param_grid=param_grid,
                 scoring={'mcc': make_scorer(matthews_corrcoef), 'f1': 'f1', 'auprc': 'average_precision'},
-                refit='mcc',
+                refit=self.metric_to_choose_best_model,
                 return_train_score=True,
                 verbose=1,
                 n_jobs=n_jobs
@@ -80,7 +88,7 @@ class BaseModel:
                 best_classifiers[class_name] = grid.best_estimator_
                 joblib.dump(grid.best_estimator_, classifier_output_dir / f"best_{class_name}.pkl")
 
-                # Note: grid.best_score_ == grid_results['mean_test_mcc'][grid.best_index_] (the mean cross-validated score of the best_estimator)
+                # Note: grid.best_score_ == grid_results['mean_test_{metric}'][grid.best_index_] (the mean cross-validated score of the best_estimator)
                 logger.info(
                     f"Best params: {grid.best_params_}, Best index: {grid.best_index_}, Best score: {grid.best_score_}")
 
@@ -96,7 +104,7 @@ class BaseModel:
                                                         grid_results['mean_train_mcc'][grid.best_index_],
                                                         grid_results['mean_train_auprc'][grid.best_index_],
                                                         grid_results['mean_train_f1'][grid.best_index_],
-                                                        grid.best_score_,
+                                                        grid_results['mean_test_mcc'][grid.best_index_],
                                                         grid_results['mean_test_auprc'][grid.best_index_],
                                                         grid_results['mean_test_f1'][grid.best_index_])
 
@@ -121,8 +129,8 @@ class BaseModel:
         best_classifiers_df.index.name = 'classifier_class'
         best_classifiers_df.to_csv(self.model_train_dir / 'best_classifier_from_each_class.csv')
 
-        best_classifier_class = best_classifiers_df['mean_mcc_on_held_out_folds'].idxmax()
-        logger.info(f"Best classifier (according to mean_mcc_on_held_out_folds): {best_classifier_class}")
+        best_classifier_class = best_classifiers_df[f'mean_{self.metric_to_choose_best_model}_on_held_out_folds'].idxmax()
+        logger.info(f"Best classifier (according to mean_{self.metric_to_choose_best_model}_on_held_out_folds): {best_classifier_class}")
 
         # Save the best classifier to disk
         joblib.dump(best_classifiers[best_classifier_class], self.model_train_dir / "best_model.pkl")
@@ -151,7 +159,7 @@ class BaseModel:
         plt.close()
 
     def plot_decision_tree(self, model, feature_names, output_dir):
-        plt.figure(figsize=(18, 12))
+        plt.figure(figsize=(24, 16))
         plot_tree(
             model,
             feature_names=feature_names,  # Custom feature names
@@ -218,3 +226,67 @@ class BaseModel:
 
         test_results = pd.DataFrame({'mcc': [mcc_on_test], 'auprc': [auprc_on_test], 'f1': [f1_on_test]})
         test_results.to_csv(self.model_test_dir / 'best_classifier_test_results.csv', index=False)
+
+    def create_classifiers_and_param_grids(self, random_state):
+        knn_grid = {
+            'n_neighbors': [5, 10],
+            'weights': ['uniform', 'distance'],
+            'metric': ['euclidean', 'manhattan', 'minkowski']
+        }
+
+        logistic_regression_grid = {
+            'solver': ['liblinear'],
+            'penalty': ['l1', 'l2'],
+            'C': [0.01, 0.1, 1, 10, 100],
+            'max_iter': [5000],
+            'random_state': [random_state],
+            'class_weight': ['balanced', None],
+        }
+
+        mlp_grid = {
+            'hidden_layer_sizes': [(10, 3), (30, 5), ],
+            'activation': ['tanh', 'relu'],
+            'solver': ['adam'],
+            'alpha': [0.0001, 0.05],
+            'learning_rate': ['constant', 'adaptive'],
+            'max_iter': [400],
+            'early_stopping': [True],
+            'random_state': [random_state],
+        }
+
+        rfc_grid = {
+            'n_estimators': [5, 20, 100],
+            'max_depth': [None, 3, 5, 10],
+            'min_samples_split': [2, 5, 10],
+            'min_samples_leaf': [1, 2, 5],
+            'random_state': [random_state],
+            'class_weight': ['balanced', None],
+            'bootstrap': [True, False]
+        }
+
+        gbc_grid = {
+            'n_estimators': [5, 20, 100],
+            'max_depth': [None, 3, 5, 10],
+            'min_samples_split': [2, 5, 10],
+            'min_samples_leaf': [1, 2, 5],
+            'random_state': [random_state],
+            'learning_rate': [0.05, 0.1],
+            'subsample': [0.6, 1],
+        }
+
+        decision_tree_grid = {
+            'max_depth': [None, 3, 5, 10],
+            'min_samples_split': [2, 5, 10],
+            'min_samples_leaf': [1, 2, 5],
+            'random_state': [random_state],
+            'class_weight': ['balanced', None],
+        }
+
+        self.classifiers = [
+            # (KNeighborsClassifier(), knn_grid),
+            # (LogisticRegression(), logistic_regression_grid),
+            # (MLPClassifier(), mlp_grid),
+            (RandomForestClassifier(), rfc_grid),
+            # (GradientBoostingClassifier(), gbc_grid),
+            (DecisionTreeClassifier(), decision_tree_grid)
+        ]
