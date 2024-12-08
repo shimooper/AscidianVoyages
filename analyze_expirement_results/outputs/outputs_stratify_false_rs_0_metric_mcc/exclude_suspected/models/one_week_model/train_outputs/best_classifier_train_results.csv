@@ -1,2 +1,0 @@
-classifier_class,best_index,mean_mcc_on_train_folds,mean_auprc_on_train_folds,mean_f1_on_train_folds,mean_mcc_on_held_out_folds,mean_auprc_on_held_out_folds,mean_f1_on_held_out_folds
-DecisionTreeClassifier,42,0.5794390336717725,0.6982454100761805,0.5320248002755585,0.5399489640378514,0.42037458809183204,0.4733621933621934
