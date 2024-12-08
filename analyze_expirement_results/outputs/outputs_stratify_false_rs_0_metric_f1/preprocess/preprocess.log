@@ -1,0 +1,3 @@
+2024-12-08 11:13:27,068 - PREPROCESS - INFO - Originally there were 140 rows in the dataset. After removing the CONTROL group, there are 117 rows. Of which, 83 ended with death and 34 did not.
+2024-12-08 11:13:27,104 - PREPROCESS - INFO - Train set has 87 routes and test set has 30 routes.
+2024-12-08 11:13:27,183 - PREPROCESS - INFO - Train set has 87 routes and test set has 30 routes.

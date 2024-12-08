@@ -213,7 +213,7 @@ class BaseModel:
         plt.close()
 
     def test_on_test_data(self, model_path, Xs_test, Ys_test):
-        logger = setup_logger(self.model_test_dir / 'classifiers_test.log', f'{self.model_name.upper()}_TEST')
+        logger = setup_logger(self.model_test_dir / 'classifiers_test.log', f'MODEL_{self.model_id}_TEST')
 
         model = joblib.load(model_path)
         Ys_test_predictions = model.predict_proba(Xs_test)
