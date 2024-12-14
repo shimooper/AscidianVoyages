@@ -1,0 +1,1 @@
+2024-12-14 16:20:25,058 - PREPROCESS - INFO - There are 140 routes in the dataset. 88 of them ended with death, and 52 did not. Preprocessed data saved to C:\repos\GoogleShips\analyze_expirement_results\data\preprocess\Final_Data_Voyages_Processed.csv
