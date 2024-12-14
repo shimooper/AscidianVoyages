@@ -31,10 +31,10 @@ METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS = [
 ]
 NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH = [
     0,
-    1,
-    2,
-    3,
-    4
+    # 1,
+    # 2,
+    # 3,
+    # 4
 ]
 TEST_SET_SIZE = 0.25
 N_JOBS = -1  # Use all available CPUs
@@ -88,3 +88,10 @@ def convert_columns_to_int(df, columns_to_skip=None):
     columns_to_convert = [col for col in df.columns if col not in columns_to_skip]
     for col in columns_to_convert:
         df[col] = df[col].astype(int)
+
+
+def get_lived_columns_to_consider(row, day, number_of_future_days_to_consider_death):
+    lived_cols_to_consider = [f'Lived {day + offset}'
+                              for offset in range(0, number_of_future_days_to_consider_death + 1)
+                              if f'Lived {day + offset}' in row.index and pd.notna(row[f'Lived {day + offset}'])]
+    return lived_cols_to_consider

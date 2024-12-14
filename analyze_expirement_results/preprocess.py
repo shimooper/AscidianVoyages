@@ -36,8 +36,9 @@ def permanent_preprocess_data():
     return df
 
 
-def preprocess_data(outputs_dir, routes_df, include_control_routes, include_suspected, stratify, random_state):
-    logger = setup_logger(outputs_dir / 'preprocess.log', 'PREPROCESS')
+def preprocess_data(outputs_dir, routes_df, include_control_routes, include_suspected, stratify, random_state,
+                    configuration_id):
+    logger = setup_logger(outputs_dir / 'preprocess.log', f'CONFIGURATION_{configuration_id}_PREPROCESS')
 
     if not include_control_routes:
         routes_df = routes_df[routes_df['Name'] != 'CONTROL']

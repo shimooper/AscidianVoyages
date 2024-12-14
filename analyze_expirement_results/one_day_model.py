@@ -3,7 +3,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 from base_model import BaseModel
-from utils import get_column_groups_sorted, convert_columns_to_int
+from utils import get_column_groups_sorted, convert_columns_to_int, get_lived_columns_to_consider
 
 
 class OneDayModel(BaseModel):
@@ -22,7 +22,7 @@ class OneDayModel(BaseModel):
                     break
 
                 col_day = int(lived_col.split(' ')[1])
-                lived_cols_to_consider = [f'Lived {col_day + offset}' for offset in range(0, number_of_future_days_to_consider_death + 1)]
+                lived_cols_to_consider = get_lived_columns_to_consider(row, col_day, number_of_future_days_to_consider_death)
                 one_day_data.append({
                     'temperature': row[temp_col],
                     'salinity': row[salinity_col],

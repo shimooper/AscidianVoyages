@@ -1,7 +1,7 @@
 import pandas as pd
 
 from base_model import BaseModel
-from utils import get_column_groups_sorted, convert_columns_to_int
+from utils import get_column_groups_sorted, convert_columns_to_int, get_lived_columns_to_consider
 
 
 class FourDaysOnlyTemperatureModel(BaseModel):
@@ -21,15 +21,14 @@ class FourDaysOnlyTemperatureModel(BaseModel):
                     continue
 
                 temperature_columns = [f'Temp {col_day - i}' for i in range(4)]
-                lived_cols_to_consider = [f'Lived {col_day + offset}' for offset in
-                                          range(0, number_of_future_days_to_consider_death + 1)]
+                lived_cols_to_consider = get_lived_columns_to_consider(row, col_day, number_of_future_days_to_consider_death)
                 new_row = {
                     'current day temperature': row[f'Temp {col_day}'],
                     'previous day temperature': row[f'Temp {col_day - 1}'],
                     '2 days ago temperature': row[f'Temp {col_day - 2}'],
                     '3 days ago temperature': row[f'Temp {col_day - 3}'],
-                    # 'max temperature': row[temperature_columns].max(),
-                    # 'min temperature': row[temperature_columns].min(),
+                    'max temperature': row[temperature_columns].max(),
+                    'min temperature': row[temperature_columns].min(),
                     'death': any(row[lived_cols_to_consider]),
                 }
                 four_days_data.append(new_row)
