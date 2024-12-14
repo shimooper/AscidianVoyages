@@ -5,13 +5,32 @@ import logging
 import re
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DATA_PATH = SCRIPT_DIR / 'data' / 'Final_Data_Voyages.xlsx'
+DATA_DIR = SCRIPT_DIR / 'data'
+DATA_PATH = DATA_DIR / 'Final_Data_Voyages.xlsx'
 OUTPUTS_DIR = SCRIPT_DIR / 'outputs'
 
-STRATIFY_TRAIN_TEST_SPLIT = [True, False]
-RANDOM_STATE = [42, 0]
-METRIC_TO_CHOOSE_BEST_MODEL_PARAMS = ['mcc', 'f1']
+INCLUDE_CONTROL_ROUTES = [
+    True,
+    # False
+]
+INCLUDE_SUSPECTED_ROUTES_PARTS = [
+    # True,
+    False
+]
+STRATIFY_TRAIN_TEST_SPLIT = [
+    # True,
+    False
+]
+RANDOM_STATE = [
+    42,
+    # 0
+]
+METRIC_TO_CHOOSE_BEST_MODEL_PARAMS = [
+    'mcc',
+    # 'f1'
+]
 TEST_SET_SIZE = 0.25
+N_JOBS = -1  # Use all available CPUs
 
 
 def variable_equals_value(variable, value):
@@ -46,3 +65,11 @@ def setup_logger(log_file, logger_name, level=logging.INFO):
 def convert_pascal_to_snake_case(name):
     # Convert PascalCase to snake_case
     return re.sub(r'(?<!^)(?=[A-Z])', '_', name).lower()
+
+
+def get_column_groups_sorted(df):
+    lived_columns = sorted([col for col in df.columns if 'Lived' in col], key=lambda x: int(x.split()[1]))
+    temperature_columns = sorted([col for col in df.columns if 'Temp' in col], key=lambda x: int(x.split()[1]))
+    salinity_columns = sorted([col for col in df.columns if 'Salinity' in col], key=lambda x: int(x.split()[1]))
+
+    return lived_columns, temperature_columns, salinity_columns

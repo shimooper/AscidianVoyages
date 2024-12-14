@@ -2,11 +2,11 @@ import os
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-from utils import (variable_equals_value, setup_logger, DATA_PATH, TEST_SET_SIZE)
+from utils import (variable_equals_value, setup_logger, get_column_groups_sorted, DATA_DIR, DATA_PATH, TEST_SET_SIZE)
 
 
-def preprocess_data(outputs_dir, outputs_include_suspected_dir, outputs_exclude_suspected_dir, stratify_flag, random_state):
-    outputs_preprocess_dir = outputs_dir / 'preprocess'
+def permanent_preprocess_data():
+    outputs_preprocess_dir = DATA_DIR / 'preprocess'
     os.makedirs(outputs_preprocess_dir, exist_ok=True)
     logger = setup_logger(outputs_preprocess_dir / 'preprocess.log', 'PREPROCESS')
 
@@ -14,9 +14,7 @@ def preprocess_data(outputs_dir, outputs_include_suspected_dir, outputs_exclude_
 
     # Convert Temp, Salinity, Lived columns to integers
     df.replace("\\", pd.NA, inplace=True)
-    lived_columns = sorted([col for col in df.columns if 'Lived' in col], key=lambda x: int(x.split()[1]))
-    temperature_columns = sorted([col for col in df.columns if 'Temp' in col], key=lambda x: int(x.split()[1]))
-    salinity_columns = sorted([col for col in df.columns if 'Salinity' in col], key=lambda x: int(x.split()[1]))
+    lived_columns, temperature_columns, salinity_columns = get_column_groups_sorted(df)
 
     for col in lived_columns + temperature_columns + salinity_columns + ['Suspected from time point']:
         df[col] = pd.to_numeric(df[col], errors='raise').astype("Int64")
@@ -24,25 +22,41 @@ def preprocess_data(outputs_dir, outputs_include_suspected_dir, outputs_exclude_
     replace_lived_indicators(df, lived_columns)
     add_dying_day(df, lived_columns, temperature_columns, salinity_columns)
 
-    df['stratify_group'] = df['Season'] + '_' + df['dying_day'].notna().astype(int).astype(str)
-
     data_processed_path = outputs_preprocess_dir / 'Final_Data_Voyages_Processed.csv'
     df.to_csv(data_processed_path, index=False)
 
-    df_exclude_control = df[df['Name'] != 'CONTROL']
-    data_processed_exclude_control_path = outputs_preprocess_dir / 'Final_Data_Voyages_Processed_Exclude_Control.csv'
-    df_exclude_control.to_csv(data_processed_exclude_control_path, index=False)
-    logger.info(f"Originally there were {len(df)} rows in the dataset. "
-                f"After removing the CONTROL group, there are {len(df_exclude_control)} rows. "
-                f"Of which, {df_exclude_control['dying_day'].notna().sum()} ended with death "
-                f"and {df_exclude_control['dying_day'].isna().sum()} did not.")
+    logger.info(f"There are {len(df)} routes in the dataset. {df['dying_day'].notna().sum()} of them ended with death,"
+                f"and {df['dying_day'].isna().sum()} did not. Preprocessed data saved to {data_processed_path}")
 
-    # From now on, I refer only to the data excluding the CONTROL group
-    df_exclude_control.to_csv(outputs_include_suspected_dir / 'full.csv', index=False)
-    create_train_test_splits(logger, df_exclude_control, outputs_include_suspected_dir, stratify_flag, random_state)
-    remove_suspected_routes_parts(df_exclude_control, lived_columns, temperature_columns, salinity_columns,
-                                  outputs_exclude_suspected_dir / 'full.csv')
-    create_train_test_splits(logger, df_exclude_control, outputs_exclude_suspected_dir, stratify_flag, random_state)
+    return df
+
+
+def preprocess_data(outputs_dir, routes_df, include_control_routes, include_suspected, stratify, random_state):
+    logger = setup_logger(outputs_dir / 'preprocess.log', 'PREPROCESS')
+
+    if not include_control_routes:
+        routes_df = routes_df[routes_df['Name'] != 'CONTROL']
+
+    if not include_suspected:
+        remove_suspected_routes_parts(routes_df)
+
+    processed_routes_path = outputs_dir / 'full.csv'
+    routes_df.to_csv(processed_routes_path, index=False)
+
+    if stratify:
+        routes_df['stratify_group'] = routes_df['Season'] + '_' + routes_df['dying_day'].notna().astype(int).astype(str)
+        stratify_column = routes_df['stratify_group']
+    else:
+        stratify_column = None
+
+    train_df, test_df = train_test_split(routes_df, test_size=TEST_SET_SIZE, random_state=random_state, stratify=stratify_column)
+    train_df.to_csv(outputs_dir / 'train.csv', index=False)
+    test_df.to_csv(outputs_dir / 'test.csv', index=False)
+
+    logger.info(f"Applied filters: include_control_routes={include_control_routes}, "
+                f"include_suspected={include_suspected}, stratify={stratify}. Processed data has now {len(routes_df)} "
+                f"routes, and was saved to {processed_routes_path}. Train set has {len(train_df)} routes and test set "
+                f"has {len(test_df)} routes.")
 
 
 def replace_lived_indicators(df, lived_columns):
@@ -94,19 +108,9 @@ def add_dying_day(df, lived_columns, temperature_columns, salinity_columns):
                                      f'{lived_col}, {temp_col}, {salinity_col}')
 
 
-def create_train_test_splits(logger, df, output_dir, stratify_flag, random_state):
-    if stratify_flag:
-        stratify = df['stratify_group']
-    else:
-        stratify = None
+def remove_suspected_routes_parts(df):
+    lived_columns, temperature_columns, salinity_columns = get_column_groups_sorted(df)
 
-    train_df, test_df = train_test_split(df, test_size=TEST_SET_SIZE, random_state=random_state, stratify=stratify)
-    train_df.to_csv(output_dir / 'train.csv', index=False)
-    test_df.to_csv(output_dir / 'test.csv', index=False)
-    logger.info(f"Train set has {len(train_df)} routes and test set has {len(test_df)} routes.")
-
-
-def remove_suspected_routes_parts(df, lived_columns, temperature_columns, salinity_columns, output_path):
     for idx, row in df.iterrows():
         if pd.isna(row['Suspected from time point']):
             continue
@@ -117,5 +121,3 @@ def remove_suspected_routes_parts(df, lived_columns, temperature_columns, salini
         for col in lived_columns + temperature_columns + salinity_columns:
             if int(col.split()[1]) >= row['Suspected from time point']:
                 df.loc[idx, col] = pd.NA
-
-    df.to_csv(output_path, index=False)

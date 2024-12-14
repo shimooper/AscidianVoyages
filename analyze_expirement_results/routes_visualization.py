@@ -2,15 +2,13 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 
+from utils import get_column_groups_sorted
 
-def plot_timeline(routes_path, condition_label, condition_full_name, y_axis_label, output_dir):
+
+def plot_timeline(routes_df, lived_columns, condition_columns, condition_full_name, y_axis_label, output_dir):
     fig, ax = plt.subplots(figsize=(15, 10))
 
-    df = pd.read_csv(routes_path)
-    lived_columns = sorted([col for col in df.columns if 'Lived' in col], key=lambda x: int(x.split()[1]))
-    condition_columns = sorted([col for col in df.columns if condition_label in col], key=lambda x: int(x.split()[1]))
-
-    for index, row in df.iterrows():
+    for index, row in routes_df.iterrows():
         survival_values = row[lived_columns].values
         condition_values = row[condition_columns].values
         days = range(len(survival_values))
@@ -32,12 +30,17 @@ def plot_timeline(routes_path, condition_label, condition_full_name, y_axis_labe
     ax.legend(loc='center right')
     ax.grid(True)
 
-    os.makedirs(output_dir, exist_ok=True)
     fig.savefig(output_dir / f'routes_timeline_{condition_full_name.lower()}', dpi=300)
     plt.close()
 
 
-def plot_timelines(output_dir):
-    routes_path = output_dir / 'full.csv'
-    plot_timeline(routes_path, 'Temp', 'Temperature', 'Temperature (celsius)', output_dir / 'routes_visualizations')
-    plot_timeline(routes_path, 'Salinity', 'Salinity', 'Salinity (ppt)', output_dir / 'routes_visualizations')
+def plot_timelines(base_dir):
+    routes_path = base_dir / 'full.csv'
+    df = pd.read_csv(routes_path)
+    lived_columns, temperature_columns, salinity_columns = get_column_groups_sorted(df)
+
+    visualizations_dir = base_dir / 'routes_visualizations'
+    os.makedirs(visualizations_dir, exist_ok=True)
+
+    plot_timeline(df, lived_columns, temperature_columns, 'Temperature', 'Temperature (celsius)', visualizations_dir)
+    plot_timeline(df, lived_columns, salinity_columns, 'Salinity', 'Salinity (ppt)', visualizations_dir)

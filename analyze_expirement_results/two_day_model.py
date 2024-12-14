@@ -1,6 +1,7 @@
 import pandas as pd
 
 from base_model import BaseModel
+from utils import get_column_groups_sorted
 
 
 class TwoDayModel(BaseModel):
@@ -8,7 +9,7 @@ class TwoDayModel(BaseModel):
         super().__init__('two_day_model', all_outputs_dir_path, metric_to_choose_best_model, random_state, model_id)
 
     def convert_routes_to_model_data(self, df):
-        temperature_columns = sorted([col for col in df.columns if 'Temp' in col], key=lambda x: int(x.split()[1]))
+        lived_columns, temperature_columns, salinity_columns = get_column_groups_sorted(df)
 
         two_day_data = []
         for index, row in df.iterrows():

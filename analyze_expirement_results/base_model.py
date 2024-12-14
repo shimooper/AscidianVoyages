@@ -16,7 +16,7 @@ from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.neural_network import MLPClassifier
 
-from utils import setup_logger, convert_pascal_to_snake_case
+from utils import setup_logger, convert_pascal_to_snake_case, N_JOBS
 
 
 class BaseModel:
@@ -37,7 +37,7 @@ class BaseModel:
         os.makedirs(self.model_train_dir, exist_ok=True)
         os.makedirs(self.model_test_dir, exist_ok=True)
 
-        self.create_classifiers_and_param_grids(random_state)
+        self.classifiers = self.create_classifiers_and_param_grids(random_state)
         self.model_id = model_id
 
     def convert_routes_to_model_data(self, df):
@@ -57,11 +57,11 @@ class BaseModel:
     def run_analysis(self):
         model_train_df, model_test_df = self.create_model_data()
 
-        self.fit_on_train_data(model_train_df.drop(columns=['death']), model_train_df['death'], -1)
+        self.fit_on_train_data(model_train_df.drop(columns=['death']), model_train_df['death'])
         self.test_on_test_data(self.model_train_dir / 'best_model.pkl', model_test_df.drop(columns=['death']),
                                model_test_df['death'])
 
-    def fit_on_train_data(self, Xs_train, Ys_train, n_jobs):
+    def fit_on_train_data(self, Xs_train, Ys_train, n_jobs=N_JOBS):
         logger = setup_logger(self.model_train_dir / 'classifiers_train.log', f'MODEL_{self.model_id}_TRAIN')
 
         best_classifiers = {}
@@ -282,7 +282,7 @@ class BaseModel:
             'class_weight': ['balanced', None],
         }
 
-        self.classifiers = [
+        return [
             # (KNeighborsClassifier(), knn_grid),
             # (LogisticRegression(), logistic_regression_grid),
             # (MLPClassifier(), mlp_grid),
