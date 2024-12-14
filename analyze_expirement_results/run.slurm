@@ -4,7 +4,7 @@
 #SBATCH --account=power-general-users
 #SBATCH --partition=power-general
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=20
+#SBATCH --cpus-per-task=30
 #SBATCH --output=/groups/pupko/yairshimony/ships/%j.out
 #SBATCH --error=/groups/pupko/yairshimony/ships/%j.err
 
@@ -19,4 +19,4 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate microbializer
 export PATH=$CONDA_PREFIX/bin:$PATH
 
-python ~/ships/analyze_expirement_results/main.py --cpus 20
+python ~/ships/analyze_expirement_results/main.py --cpus 30
