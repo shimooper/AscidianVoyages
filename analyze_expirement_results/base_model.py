@@ -115,7 +115,7 @@ class BaseModel:
                                                  grid.best_estimator_.feature_importances_, classifier_output_dir)
 
                 if class_name == 'DecisionTreeClassifier':
-                    self.plot_decision_tree(grid.best_estimator_, Xs_train.columns, classifier_output_dir)
+                    self.plot_decision_tree(grid.best_estimator_, list(Xs_train.columns), classifier_output_dir)
                     if len(Xs_train.columns) >= 2:
                         self.plot_decision_functions_of_features_pairs(Xs_train, Ys_train, grid.best_params_, classifier_output_dir)
 
