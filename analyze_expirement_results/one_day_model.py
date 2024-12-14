@@ -3,7 +3,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 from base_model import BaseModel
-from utils import get_column_groups_sorted
+from utils import get_column_groups_sorted, convert_columns_to_int
 
 
 class OneDayModel(BaseModel):
@@ -26,8 +26,7 @@ class OneDayModel(BaseModel):
                 })
 
         one_day_df = pd.DataFrame(one_day_data)
-        for col in one_day_df.columns:
-            one_day_df[col] = one_day_df[col].astype(int)
+        convert_columns_to_int(one_day_df)
 
         return one_day_df
 

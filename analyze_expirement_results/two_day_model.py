@@ -1,7 +1,7 @@
 import pandas as pd
 
 from base_model import BaseModel
-from utils import get_column_groups_sorted
+from utils import get_column_groups_sorted, convert_columns_to_int
 
 
 class TwoDayModel(BaseModel):
@@ -27,7 +27,6 @@ class TwoDayModel(BaseModel):
                 two_day_data.append(new_row)
 
         two_day_df = pd.DataFrame(two_day_data)
-        for col in two_day_df.columns:
-            two_day_df[col] = two_day_df[col].astype(int)
+        convert_columns_to_int(two_day_df)
 
         return two_day_df

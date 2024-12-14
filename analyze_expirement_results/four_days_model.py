@@ -1,7 +1,7 @@
 import pandas as pd
 
 from base_model import BaseModel
-from utils import get_column_groups_sorted
+from utils import get_column_groups_sorted, convert_columns_to_int
 
 
 class FourDaysModel(BaseModel):
@@ -35,9 +35,6 @@ class FourDaysModel(BaseModel):
                 four_days_data.append(new_row)
 
         four_days_df = pd.DataFrame(four_days_data)
-
-        for col in [col for col in four_days_df.columns if
-                    col not in ['weekly average temperature', 'weekly average salinity']]:
-            four_days_df[col] = four_days_df[col].astype(int)
+        convert_columns_to_int(four_days_df, columns_to_skip=['weekly average temperature', 'weekly average salinity'])
 
         return four_days_df

@@ -1,7 +1,7 @@
 import pandas as pd
 
 from base_model import BaseModel
-from utils import get_column_groups_sorted
+from utils import get_column_groups_sorted, convert_columns_to_int
 
 
 class OneDayOnlyTemperatureModel(BaseModel):
@@ -23,7 +23,6 @@ class OneDayOnlyTemperatureModel(BaseModel):
                 })
 
         one_day_only_temperature_df = pd.DataFrame(one_day_only_temperature_data)
-        for col in one_day_only_temperature_df.columns:
-            one_day_only_temperature_df[col] = one_day_only_temperature_df[col].astype(int)
+        convert_columns_to_int(one_day_only_temperature_df)
 
         return one_day_only_temperature_df

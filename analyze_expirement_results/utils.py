@@ -73,3 +73,11 @@ def get_column_groups_sorted(df):
     salinity_columns = sorted([col for col in df.columns if 'Salinity' in col], key=lambda x: int(x.split()[1]))
 
     return lived_columns, temperature_columns, salinity_columns
+
+
+def convert_columns_to_int(df, columns_to_skip=None):
+    if columns_to_skip is None:
+        columns_to_skip = []
+    columns_to_convert = [col for col in df.columns if col not in columns_to_skip]
+    for col in columns_to_convert:
+        df[col] = df[col].astype(int)

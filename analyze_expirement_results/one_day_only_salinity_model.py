@@ -1,7 +1,7 @@
 import pandas as pd
 
 from base_model import BaseModel
-from utils import get_column_groups_sorted
+from utils import get_column_groups_sorted, convert_columns_to_int
 
 
 class OneDayOnlySalinityModel(BaseModel):
@@ -23,7 +23,6 @@ class OneDayOnlySalinityModel(BaseModel):
                 })
 
         one_day_salinity_df = pd.DataFrame(one_day_salinity_data)
-        for col in one_day_salinity_df.columns:
-            one_day_salinity_df[col] = one_day_salinity_df[col].astype(int)
+        convert_columns_to_int(one_day_salinity_df)
 
         return one_day_salinity_df

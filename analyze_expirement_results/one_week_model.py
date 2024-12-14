@@ -1,7 +1,7 @@
 import pandas as pd
 
 from base_model import BaseModel
-from utils import get_column_groups_sorted
+from utils import get_column_groups_sorted, convert_columns_to_int
 
 
 class OneWeekModel(BaseModel):
@@ -35,9 +35,6 @@ class OneWeekModel(BaseModel):
                 one_week_data.append(new_row)
 
         one_week_df = pd.DataFrame(one_week_data)
-
-        for col in [col for col in one_week_df.columns if
-                    col not in ['weekly average temperature', 'weekly average salinity']]:
-            one_week_df[col] = one_week_df[col].astype(int)
+        convert_columns_to_int(one_week_df, columns_to_skip=['weekly average temperature', 'weekly average salinity'])
 
         return one_week_df
