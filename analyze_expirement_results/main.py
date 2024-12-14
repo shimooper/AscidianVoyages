@@ -46,14 +46,19 @@ def main(cpus):
 
     configuration_id = 0
     for include_control_flag, include_suspected_flag, stratify_flag, number_of_future_days, random_state, metric in flags:
-        outputs_dir = OUTPUTS_DIR / f'outputs_' \
-                                    f'includeControl_{include_control_flag}_' \
-                                    f'includeSuspected_{include_suspected_flag}_' \
-                                    f'stratify_{stratify_flag}_' \
-                                    f'futureDays_{number_of_future_days}_' \
-                                    f'rs_{random_state}_' \
-                                    f'metric_{metric}'
+        outputs_dir = OUTPUTS_DIR / f'configuration_{configuration_id}'
         os.makedirs(outputs_dir, exist_ok=True)
+
+        configuration_df = pd.DataFrame({
+            'include_control_flag': [include_control_flag],
+            'include_suspected_flag': [include_suspected_flag],
+            'stratify_flag': [stratify_flag],
+            'number_of_future_days': [number_of_future_days],
+            'random_state': [random_state],
+            'metric': [metric]
+        })
+        configuration_df.to_csv(outputs_dir / 'configuration.csv', index=False)
+
         preprocess_data(outputs_dir, processed_df, include_control_flag, include_suspected_flag, stratify_flag,
                         random_state, configuration_id)
 
@@ -81,18 +86,20 @@ def aggregate_test_metrics_of_one_configuration(outputs_dir):
 
     all_models_test_results_df = pd.DataFrame.from_dict(all_models_test_results, orient='index')
     all_models_test_results_df.index.name = 'model_name'
+    all_models_test_results_df.reset_index(inplace=True)
 
-    all_models_test_results_df_melted = all_models_test_results_df.melt(id_vars='Model', var_name='Metric', value_name='Value')
+    all_models_test_results_df_melted = all_models_test_results_df.melt(id_vars='model_name', var_name='metric', value_name='value')
     plt.figure(figsize=(10, 6))
-    sns.barplot(data=all_models_test_results_df_melted, x='Metric', y='Value', hue='Model', palette='viridis')
-    plt.title('Comparison of Models Across Metrics')
+    sns.barplot(data=all_models_test_results_df_melted, x='metric', y='value', hue='model_name', palette='viridis')
+    plt.title('Comparison of models')
     plt.ylabel('Score')
     plt.xlabel('Metric')
-    plt.legend(title='Model')
+    plt.legend(title='Model', bbox_to_anchor=(1.05, 0.5), loc='center left', borderaxespad=0.)
     plt.tight_layout()
     plt.savefig(outputs_dir / 'all_models_comparison.png', dpi=300)
     plt.close()
 
+    all_models_test_results_df.set_index('model_name', inplace=True)
     max_indices = all_models_test_results_df.idxmax()
     all_models_test_results_df.loc['best_model'] = max_indices
     all_models_test_results_df.to_csv(outputs_dir / 'all_test_results.csv')
