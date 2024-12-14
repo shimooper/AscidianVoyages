@@ -31,10 +31,10 @@ METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS = [
 ]
 NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH = [
     0,
-    # 1,
-    # 2,
-    # 3,
-    # 4
+    1,
+    2,
+    3,
+    4
 ]
 TEST_SET_SIZE = 0.25
 N_JOBS = -1  # Use all available CPUs
