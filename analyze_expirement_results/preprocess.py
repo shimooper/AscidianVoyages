@@ -2,7 +2,8 @@ import os
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-from utils import (variable_equals_value, setup_logger, get_column_groups_sorted, DATA_DIR, DATA_PATH, TEST_SET_SIZE)
+from utils import (variable_equals_value, setup_logger, get_column_groups_sorted, routes_statistics,
+                   DATA_DIR, DATA_PATH, TEST_SET_SIZE)
 
 
 def permanent_preprocess_data():
@@ -30,8 +31,7 @@ def permanent_preprocess_data():
 
     df.to_csv(data_processed_path, index=False)
 
-    logger.info(f"There are {len(df)} routes in the dataset. {df['dying_day'].notna().sum()} of them ended with death, "
-                f"and {df['dying_day'].isna().sum()} did not. Preprocessed data saved to {data_processed_path}")
+    logger.info(f"{routes_statistics(df)}\nPreprocessed data saved to {data_processed_path}")
 
     return df
 
@@ -60,9 +60,10 @@ def preprocess_data(outputs_dir, routes_df, include_control_routes, include_susp
     test_df.to_csv(outputs_dir / 'test.csv', index=False)
 
     logger.info(f"Applied filters: include_control_routes={include_control_routes}, "
-                f"include_suspected={include_suspected}, stratify={stratify}. Processed data has now {len(routes_df)} "
-                f"routes, and was saved to {processed_routes_path}. Train set has {len(train_df)} routes and test set "
-                f"has {len(test_df)} routes.")
+                f"include_suspected={include_suspected}, stratify={stratify}\n"
+                f"{routes_statistics(routes_df)}\n"
+                f"Routes were saved to {processed_routes_path}.\n"
+                f"There are {len(train_df)} routes in the train set and {len(test_df)} routes in the test set.")
 
 
 def replace_lived_indicators(df, lived_columns):

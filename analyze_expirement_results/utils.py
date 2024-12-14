@@ -95,3 +95,25 @@ def get_lived_columns_to_consider(row, day, number_of_future_days_to_consider_de
                               for offset in range(0, number_of_future_days_to_consider_death + 1)
                               if f'Lived {day + offset}' in row.index and pd.notna(row[f'Lived {day + offset}'])]
     return lived_cols_to_consider
+
+
+def routes_statistics(df):
+    count = len(df)
+    count_death = df['dying_day'].notna().sum()
+    count_survived = df['dying_day'].isna().sum()
+
+    routes_winter_df = df[df['Season'] == 'winter']
+    count_winter = len(routes_winter_df)
+    count_winter_death = routes_winter_df['dying_day'].notna().sum()
+    count_winter_survived = routes_winter_df['dying_day'].isna().sum()
+
+    routes_summer_df = df[df['Season'] == 'summer']
+    count_summer = len(routes_summer_df)
+    count_summer_death = routes_summer_df['dying_day'].notna().sum()
+    count_summer_survived = routes_summer_df['dying_day'].isna().sum()
+
+    text = f"There are {count} routes in the dataset. {count_death} of them ended with death, and {count_survived} did not.\n" \
+           f"{count_winter} routes are in winter season, {count_winter_death} of them ended with death, and {count_winter_survived} did not.\n" \
+           f"{count_summer} routes are in summer season, {count_summer_death} of them ended with death, and {count_summer_survived} did not."
+
+    return text

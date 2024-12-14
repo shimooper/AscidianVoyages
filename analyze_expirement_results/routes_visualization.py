@@ -44,3 +44,15 @@ def plot_timelines(base_dir):
 
     plot_timeline(df, lived_columns, temperature_columns, 'Temperature', 'Temperature (celsius)', visualizations_dir)
     plot_timeline(df, lived_columns, salinity_columns, 'Salinity', 'Salinity (ppt)', visualizations_dir)
+
+    routes_summer_df = df[df['Season'] == 'summer']
+    plot_timeline(routes_summer_df, lived_columns, temperature_columns, 'Temperature in Summer',
+                  'Temperature (celsius)', visualizations_dir)
+    plot_timeline(routes_summer_df, lived_columns, salinity_columns, 'Salinity in Summer', 'Salinity (ppt)',
+                  visualizations_dir)
+
+    routes_winter_df = df[df['Season'] == 'winter']
+    plot_timeline(routes_winter_df, lived_columns, temperature_columns, 'Temperature in Winter',
+                  'Temperature (celsius)', visualizations_dir)
+    plot_timeline(routes_winter_df, lived_columns, salinity_columns, 'Salinity in Winter', 'Salinity (ppt)',
+                  visualizations_dir)
