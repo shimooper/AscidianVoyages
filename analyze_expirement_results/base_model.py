@@ -3,6 +3,7 @@ import os
 import joblib
 import pandas as pd
 import json
+import math
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -117,7 +118,9 @@ class BaseModel:
                 if class_name == 'DecisionTreeClassifier':
                     self.plot_decision_tree(grid.best_estimator_, list(Xs_train.columns), classifier_output_dir)
                     if len(Xs_train.columns) >= 2:
-                        self.plot_decision_functions_of_features_pairs(Xs_train, Ys_train, grid.best_params_, classifier_output_dir)
+                        self.plot_decision_functions_of_features_pairs(Xs_train, Ys_train, grid.best_params_,
+                                                                       grid.best_estimator_.feature_importances_,
+                                                                       classifier_output_dir)
 
             except Exception as e:
                 logger.error(f"Failed to train classifier {class_name} with error: {e}")
@@ -173,10 +176,20 @@ class BaseModel:
         plt.savefig(output_dir / 'DecisionTreeClassifier_plot.png', dpi=600)
         plt.close()
 
-    def plot_decision_functions_of_features_pairs(self, Xs_train, Ys_train, best_params, output_dir):
+    def plot_decision_functions_of_features_pairs(self, Xs_train, Ys_train, best_params, feature_importances, output_dir):
         n_classes = 2
         plot_colors = "gr"
         plot_step = 0.02
+
+        # Create a DataFrame for feature importance and sort by importance
+        importance_df = pd.DataFrame({
+            'column': Xs_train.columns,
+            'importance': feature_importances
+        }).sort_values(by='importance', ascending=False)
+
+        # Get the top 4 columns
+        top_columns = importance_df['column'][:4].tolist()
+        Xs_train = Xs_train[top_columns]
 
         for pairidx, pair in enumerate(itertools.combinations(Xs_train.columns, 2)):
             # We only take the two corresponding features
