@@ -4,10 +4,10 @@ from base_model import BaseModel
 from utils import get_column_groups_sorted, convert_columns_to_int
 
 
-class FourDaysModel(BaseModel):
+class FourDaysOnlyTemperatureModel(BaseModel):
     def __init__(self, all_outputs_dir_path, metric_to_choose_best_model, random_state,
                  number_of_future_days_to_consider_death, model_id):
-        super().__init__('four_days_model', all_outputs_dir_path, metric_to_choose_best_model, random_state,
+        super().__init__('four_days_only_temperature_model', all_outputs_dir_path, metric_to_choose_best_model, random_state,
                          number_of_future_days_to_consider_death, model_id)
 
     def convert_routes_to_model_data(self, df, number_of_future_days_to_consider_death):
@@ -21,7 +21,6 @@ class FourDaysModel(BaseModel):
                     continue
 
                 temperature_columns = [f'Temp {col_day - i}' for i in range(4)]
-                salinity_columns = [f'Salinity {col_day - i}' for i in range(4)]
                 lived_cols_to_consider = [f'Lived {col_day + offset}' for offset in
                                           range(0, number_of_future_days_to_consider_death + 1)]
                 new_row = {
@@ -31,12 +30,6 @@ class FourDaysModel(BaseModel):
                     '3 days ago temperature': row[f'Temp {col_day - 3}'],
                     # 'max temperature': row[temperature_columns].max(),
                     # 'min temperature': row[temperature_columns].min(),
-                    'current day salinity': row[f'Salinity {col_day}'],
-                    'previous day salinity': row[f'Salinity {col_day - 1}'],
-                    '2 days ago salinity': row[f'Salinity {col_day - 2}'],
-                    '3 days ago salinity': row[f'Salinity {col_day - 3}'],
-                    # 'max salinity': row[salinity_columns].max(),
-                    # 'min salinity': row[salinity_columns].min(),
                     'death': any(row[lived_cols_to_consider]),
                 }
                 four_days_data.append(new_row)

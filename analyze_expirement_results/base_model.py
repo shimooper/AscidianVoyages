@@ -20,9 +20,12 @@ from utils import setup_logger, convert_pascal_to_snake_case, N_JOBS
 
 
 class BaseModel:
-    def __init__(self, model_name, all_outputs_dir_path, metric_to_choose_best_model, random_state, model_id):
+    def __init__(self, model_name, all_outputs_dir_path, metric_to_choose_best_model, random_state,
+                 number_of_future_days_to_consider_death, model_id):
+        self.model_id = model_id
         self.model_name = model_name
         self.metric_to_choose_best_model = metric_to_choose_best_model
+        self.number_of_future_days_to_consider_death = number_of_future_days_to_consider_death
         self.train_file_path = all_outputs_dir_path / 'train.csv'
         self.test_file_path = all_outputs_dir_path / 'test.csv'
 
@@ -38,30 +41,29 @@ class BaseModel:
         os.makedirs(self.model_test_dir, exist_ok=True)
 
         self.classifiers = self.create_classifiers_and_param_grids(random_state)
-        self.model_id = model_id
 
-    def convert_routes_to_model_data(self, df):
+    def convert_routes_to_model_data(self, df, number_of_future_days_to_consider_death):
         raise NotImplementedError
 
     def create_model_data(self):
         train_df = pd.read_csv(self.train_file_path)
-        model_train_df = self.convert_routes_to_model_data(train_df)
+        model_train_df = self.convert_routes_to_model_data(train_df, self.number_of_future_days_to_consider_death)
         model_train_df.to_csv(self.model_train_set_path, index=False)
 
         test_df = pd.read_csv(self.test_file_path)
-        model_test_df = self.convert_routes_to_model_data(test_df)
+        model_test_df = self.convert_routes_to_model_data(test_df, self.number_of_future_days_to_consider_death)
         model_test_df.to_csv(self.model_test_set_path, index=False)
 
         return model_train_df, model_test_df
 
-    def run_analysis(self):
+    def run_analysis(self, n_jobs):
         model_train_df, model_test_df = self.create_model_data()
 
-        self.fit_on_train_data(model_train_df.drop(columns=['death']), model_train_df['death'])
+        self.fit_on_train_data(model_train_df.drop(columns=['death']), model_train_df['death'], n_jobs)
         self.test_on_test_data(self.model_train_dir / 'best_model.pkl', model_test_df.drop(columns=['death']),
                                model_test_df['death'])
 
-    def fit_on_train_data(self, Xs_train, Ys_train, n_jobs=N_JOBS):
+    def fit_on_train_data(self, Xs_train, Ys_train, n_jobs):
         logger = setup_logger(self.model_train_dir / 'classifiers_train.log', f'MODEL_{self.model_id}_TRAIN')
 
         best_classifiers = {}

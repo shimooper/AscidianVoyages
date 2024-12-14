@@ -4,10 +4,10 @@ from base_model import BaseModel
 from utils import get_column_groups_sorted, convert_columns_to_int
 
 
-class TwoDayModel(BaseModel):
+class TwoDayOnlySalinityModel(BaseModel):
     def __init__(self, all_outputs_dir_path, metric_to_choose_best_model, random_state,
                  number_of_future_days_to_consider_death, model_id):
-        super().__init__('two_day_model', all_outputs_dir_path, metric_to_choose_best_model, random_state,
+        super().__init__('two_day_only_salinity_model', all_outputs_dir_path, metric_to_choose_best_model, random_state,
                          number_of_future_days_to_consider_death, model_id)
 
     def convert_routes_to_model_data(self, df, number_of_future_days_to_consider_death):
@@ -22,8 +22,6 @@ class TwoDayModel(BaseModel):
 
                 lived_cols_to_consider = [f'Lived {col_day + offset}' for offset in range(0, number_of_future_days_to_consider_death + 1)]
                 new_row = {
-                    'current day temperature': row[f'Temp {col_day}'],
-                    'previous day temperature': row[f'Temp {col_day - 1}'],
                     'current day salinity': row[f'Salinity {col_day}'],
                     'previous day salinity': row[f'Salinity {col_day - 1}'],
                     'death': any(row[lived_cols_to_consider]),
