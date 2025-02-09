@@ -17,20 +17,20 @@ from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.neural_network import MLPClassifier
 
-from utils import setup_logger, convert_pascal_to_snake_case, N_JOBS
+from utils import setup_logger, convert_pascal_to_snake_case, get_column_groups_sorted, convert_columns_to_int, \
+    get_lived_columns_to_consider
 
 
-class BaseModel:
-    def __init__(self, model_name, all_outputs_dir_path, metric_to_choose_best_model, random_state,
+class Model:
+    def __init__(self, all_outputs_dir_path, metric_to_choose_best_model, random_state,
                  number_of_future_days_to_consider_death, model_id):
         self.model_id = model_id
-        self.model_name = model_name
         self.metric_to_choose_best_model = metric_to_choose_best_model
         self.number_of_future_days_to_consider_death = number_of_future_days_to_consider_death
         self.train_file_path = all_outputs_dir_path / 'train.csv'
         self.test_file_path = all_outputs_dir_path / 'test.csv'
 
-        self.output_dir_path = all_outputs_dir_path / 'models' / model_name
+        self.output_dir_path = all_outputs_dir_path / 'models'
         self.model_data_dir = self.output_dir_path / 'data'
         self.model_train_set_path = self.model_data_dir / 'train.csv'
         self.model_test_set_path = self.model_data_dir / 'test.csv'
@@ -44,7 +44,39 @@ class BaseModel:
         self.classifiers = self.create_classifiers_and_param_grids(random_state)
 
     def convert_routes_to_model_data(self, df, number_of_future_days_to_consider_death):
-        raise NotImplementedError
+        lived_columns, temperature_columns, salinity_columns = get_column_groups_sorted(df)
+
+        four_days_data = []
+        for index, row in df.iterrows():
+            for col in lived_columns[-1:2:-1]:
+                col_day = int(col.split(' ')[1])
+                if pd.isna(row[f'Lived {col_day}']):
+                    continue
+
+                temperature_columns = [f'Temp {col_day - i}' for i in range(4)]
+                salinity_columns = [f'Salinity {col_day - i}' for i in range(4)]
+                lived_cols_to_consider = get_lived_columns_to_consider(row, col_day, number_of_future_days_to_consider_death)
+                new_row = {
+                    'current day temperature': row[f'Temp {col_day}'],
+                    'previous day temperature': row[f'Temp {col_day - 1}'],
+                    '2 days ago temperature': row[f'Temp {col_day - 2}'],
+                    '3 days ago temperature': row[f'Temp {col_day - 3}'],
+                    'max temperature': row[temperature_columns].max(),
+                    'min temperature': row[temperature_columns].min(),
+                    'current day salinity': row[f'Salinity {col_day}'],
+                    'previous day salinity': row[f'Salinity {col_day - 1}'],
+                    '2 days ago salinity': row[f'Salinity {col_day - 2}'],
+                    '3 days ago salinity': row[f'Salinity {col_day - 3}'],
+                    'max salinity': row[salinity_columns].max(),
+                    'min salinity': row[salinity_columns].min(),
+                    'death': any(row[lived_cols_to_consider]),
+                }
+                four_days_data.append(new_row)
+
+        four_days_df = pd.DataFrame(four_days_data)
+        convert_columns_to_int(four_days_df)
+
+        return four_days_df
 
     def create_model_data(self):
         train_df = pd.read_csv(self.train_file_path)

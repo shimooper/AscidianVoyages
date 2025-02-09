@@ -8,27 +8,7 @@ from utils import OUTPUTS_DIR, STRATIFY_TRAIN_TEST_SPLIT, RANDOM_STATE, METRIC_T
     INCLUDE_SUSPECTED_ROUTES_PARTS, INCLUDE_CONTROL_ROUTES, NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH, N_JOBS
 from preprocess import permanent_preprocess_data, preprocess_data
 from routes_visualization import plot_timelines
-from one_day_model import OneDayModel
-from one_day_only_temperature_model import OneDayOnlyTemperatureModel
-from one_day_only_salinity_model import OneDayOnlySalinityModel
-from two_day_model import TwoDayModel
-from two_day_only_temperature_model import TwoDayOnlyTemperatureModel
-from two_day_only_salinity_model import TwoDayOnlySalinityModel
-from four_days_model import FourDaysModel
-from four_days_only_temperature_model import FourDaysOnlyTemperatureModel
-from four_days_only_salinity_model import FourDaysOnlySalinityModel
-
-MODEL_CLASSES = [
-        OneDayModel,
-        OneDayOnlyTemperatureModel,
-        OneDayOnlySalinityModel,
-        TwoDayModel,
-        TwoDayOnlyTemperatureModel,
-        TwoDayOnlySalinityModel,
-        FourDaysModel,
-        FourDaysOnlyTemperatureModel,
-        FourDaysOnlySalinityModel
-]
+from model import Model
 
 
 def main(cpus):
@@ -64,12 +44,8 @@ def main(cpus):
 
         plot_timelines(outputs_dir)
 
-        model_id = 0
-        for model_class in MODEL_CLASSES:
-            model_instance = model_class(outputs_dir, metric, random_state, number_of_future_days,
-                                         f'{configuration_id}_{model_id}')
-            model_instance.run_analysis(cpus)
-            model_id += 1
+        model_instance = Model(outputs_dir, metric, random_state, number_of_future_days, configuration_id)
+        model_instance.run_analysis(cpus)
 
         aggregate_test_metrics_of_one_configuration(outputs_dir)
         configuration_id += 1
