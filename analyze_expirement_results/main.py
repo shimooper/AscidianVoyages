@@ -1,8 +1,8 @@
-import os
 import pandas as pd
 import argparse
 import seaborn as sns
 import matplotlib.pyplot as plt
+import itertools
 
 from utils import OUTPUTS_DIR, STRATIFY_TRAIN_TEST_SPLIT, RANDOM_STATE, METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS, \
     INCLUDE_SUSPECTED_ROUTES_PARTS, INCLUDE_CONTROL_ROUTES, NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH, N_JOBS
@@ -14,38 +14,37 @@ from model import Model
 def main(cpus):
     processed_df = permanent_preprocess_data()
 
-    flags = []
-    for include_control_flag in INCLUDE_CONTROL_ROUTES:
-        for include_suspected_flag in INCLUDE_SUSPECTED_ROUTES_PARTS:
-            for stratify_flag in STRATIFY_TRAIN_TEST_SPLIT:
-                for number_of_future_days in NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH:
-                    for random_state in RANDOM_STATE:
-                        for metric in METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS:
-                            flags.append((include_control_flag, include_suspected_flag, stratify_flag,
-                                          number_of_future_days, random_state, metric))
-
     configuration_id = 0
-    for include_control_flag, include_suspected_flag, stratify_flag, number_of_future_days, random_state, metric in flags:
+    for include_control_flag, include_suspected_flag, stratify_flag, random_state, metric in itertools.product(
+            INCLUDE_CONTROL_ROUTES, INCLUDE_SUSPECTED_ROUTES_PARTS, STRATIFY_TRAIN_TEST_SPLIT, RANDOM_STATE,
+            METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS):
         outputs_dir = OUTPUTS_DIR / f'configuration_{configuration_id}'
-        os.makedirs(outputs_dir, exist_ok=True)
+        outputs_dir.mkdir(exist_ok=True, parents=True)
 
-        configuration_df = pd.DataFrame({
-            'include_control_flag': [include_control_flag],
-            'include_suspected_flag': [include_suspected_flag],
-            'stratify_flag': [stratify_flag],
-            'number_of_future_days': [number_of_future_days],
-            'random_state': [random_state],
-            'metric': [metric]
-        })
+        configuration = {
+            'include_control_flag': include_control_flag,
+            'include_suspected_flag': include_suspected_flag,
+            'stratify_flag': stratify_flag,
+            'random_state': random_state,
+            'metric': metric
+        }
+
+        configuration_df = pd.DataFrame(list(configuration.items()), columns=['key', 'value'])
         configuration_df.to_csv(outputs_dir / 'configuration.csv', index=False)
 
-        preprocess_data(outputs_dir, processed_df, include_control_flag, include_suspected_flag, stratify_flag,
+        data_path = outputs_dir / 'data'
+        data_path.mkdir(exist_ok=True, parents=True)
+        preprocess_data(data_path, processed_df, include_control_flag, include_suspected_flag, stratify_flag,
                         random_state, configuration_id)
+        plot_timelines(data_path)
 
-        plot_timelines(outputs_dir)
-
-        model_instance = Model(outputs_dir, metric, random_state, number_of_future_days, configuration_id)
-        model_instance.run_analysis(cpus)
+        model_id = 0
+        for number_of_future_days in NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH:
+            model_name = f'future_days_to_consider_death_{number_of_future_days}'
+            model_instance = Model(f'{configuration_id}_{model_id}', model_name, data_path,
+                                   outputs_dir / 'models', metric, random_state, number_of_future_days)
+            model_instance.run_analysis(cpus)
+            model_id += 1
 
         aggregate_test_metrics_of_one_configuration(outputs_dir)
         configuration_id += 1
@@ -54,11 +53,10 @@ def main(cpus):
 def aggregate_test_metrics_of_one_configuration(outputs_dir):
     all_models_test_results = {}
 
-    for model_dir_name in os.listdir(outputs_dir / 'models'):
-        model_test_results_path = (outputs_dir / 'models' / model_dir_name / 'test_outputs' /
-                                   'best_classifier_test_results.csv')
+    for model_dir_path in (outputs_dir / 'models').iterdir():
+        model_test_results_path = model_dir_path / 'test_outputs' / 'best_classifier_test_results.csv'
         model_test_results_df = pd.read_csv(model_test_results_path)
-        all_models_test_results[model_dir_name] = model_test_results_df.loc[0]
+        all_models_test_results[model_dir_path.name] = model_test_results_df.loc[0]
 
     all_models_test_results_df = pd.DataFrame.from_dict(all_models_test_results, orient='index')
     all_models_test_results_df.index.name = 'model_name'

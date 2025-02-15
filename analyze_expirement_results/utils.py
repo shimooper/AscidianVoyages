@@ -3,6 +3,9 @@ from pathlib import Path
 import pandas as pd
 import logging
 import re
+from sklearn.metrics import make_scorer, matthews_corrcoef
+
+DEBUG_MODE = True
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR / 'data'
@@ -38,6 +41,8 @@ NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH = [
 ]
 TEST_SET_SIZE = 0.25
 N_JOBS = -1  # Use all available CPUs
+
+METRIC_NAME_TO_SKLEARN_SCORER = {'mcc': make_scorer(matthews_corrcoef), 'f1': 'f1', 'auprc': 'average_precision'}
 
 
 def variable_equals_value(variable, value):

@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from utils import get_column_groups_sorted
+from utils import get_column_groups_sorted, DEBUG_MODE
 
 
 def plot_timeline(routes_df, lived_columns, condition_columns, condition_full_name, y_axis_label, output_dir):
@@ -35,6 +35,9 @@ def plot_timeline(routes_df, lived_columns, condition_columns, condition_full_na
 
 
 def plot_timelines(base_dir):
+    if DEBUG_MODE:
+        return
+
     routes_path = base_dir / 'full.csv'
     df = pd.read_csv(routes_path)
     lived_columns, temperature_columns, salinity_columns = get_column_groups_sorted(df)

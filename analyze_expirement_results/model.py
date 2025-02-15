@@ -1,47 +1,48 @@
 import itertools
-import os
 import joblib
 import pandas as pd
 import json
-import math
+import seaborn as sns
 import numpy as np
 import matplotlib.pyplot as plt
 
 import sklearn
-from sklearn.model_selection import GridSearchCV
-from sklearn.metrics import make_scorer, matthews_corrcoef, average_precision_score, f1_score
+from sklearn.model_selection import GridSearchCV, StratifiedKFold
+from sklearn.metrics import matthews_corrcoef, average_precision_score, f1_score
 from sklearn.tree import DecisionTreeClassifier, plot_tree
 from sklearn.inspection import DecisionBoundaryDisplay
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.neural_network import MLPClassifier
+from sklearn.feature_selection import RFECV
 
 from utils import setup_logger, convert_pascal_to_snake_case, get_column_groups_sorted, convert_columns_to_int, \
-    get_lived_columns_to_consider
+    get_lived_columns_to_consider, METRIC_NAME_TO_SKLEARN_SCORER, DEBUG_MODE
 
 
 class Model:
-    def __init__(self, all_outputs_dir_path, metric_to_choose_best_model, random_state,
-                 number_of_future_days_to_consider_death, model_id):
+    def __init__(self, model_id, model_name, data_path, model_outputs_path, metric_to_choose_best_model, random_state,
+                 number_of_future_days_to_consider_death):
         self.model_id = model_id
         self.metric_to_choose_best_model = metric_to_choose_best_model
         self.number_of_future_days_to_consider_death = number_of_future_days_to_consider_death
-        self.train_file_path = all_outputs_dir_path / 'train.csv'
-        self.test_file_path = all_outputs_dir_path / 'test.csv'
+        self.train_file_path = data_path / 'train.csv'
+        self.test_file_path = data_path / 'test.csv'
 
-        self.output_dir_path = all_outputs_dir_path / 'models'
+        self.output_dir_path = model_outputs_path / model_name
         self.model_data_dir = self.output_dir_path / 'data'
         self.model_train_set_path = self.model_data_dir / 'train.csv'
         self.model_test_set_path = self.model_data_dir / 'test.csv'
         self.model_train_dir = self.output_dir_path / 'train_outputs'
         self.model_test_dir = self.output_dir_path / 'test_outputs'
-        os.makedirs(self.output_dir_path, exist_ok=True)
-        os.makedirs(self.model_data_dir, exist_ok=True)
-        os.makedirs(self.model_train_dir, exist_ok=True)
-        os.makedirs(self.model_test_dir, exist_ok=True)
+        self.output_dir_path.mkdir(exist_ok=True, parents=True)
+        self.model_data_dir.mkdir(exist_ok=True, parents=True)
+        self.model_train_dir.mkdir(exist_ok=True, parents=True)
+        self.model_test_dir.mkdir(exist_ok=True, parents=True)
 
-        self.classifiers = self.create_classifiers_and_param_grids(random_state)
+        self.random_state = random_state
+        self.classifiers = self.create_classifiers_and_param_grids()
 
     def convert_routes_to_model_data(self, df, number_of_future_days_to_consider_death):
         lived_columns, temperature_columns, salinity_columns = get_column_groups_sorted(df)
@@ -89,27 +90,72 @@ class Model:
 
         return model_train_df, model_test_df
 
+    def plot_feature_pairs(self, train_df, test_df):
+        if DEBUG_MODE:
+            return
+
+        full_df = pd.concat([train_df, test_df], axis=0)
+
+        full_df['death_label'] = full_df['death'].map({1: 'Dead', 0: 'Alive'}).astype('category')
+        full_df.drop(columns=['death'], inplace=True)
+
+        sns.pairplot(full_df, hue='death_label', palette={'Dead': 'red', 'Alive': 'green'})
+
+        plt.grid(alpha=0.3)
+        plt.savefig(self.model_data_dir / "scatter_plot.png", dpi=300, bbox_inches='tight')
+        plt.close()
+
     def run_analysis(self, n_jobs):
         model_train_df, model_test_df = self.create_model_data()
+        self.plot_feature_pairs(model_train_df, model_test_df)
 
-        self.fit_on_train_data(model_train_df.drop(columns=['death']), model_train_df['death'], n_jobs)
-        self.test_on_test_data(self.model_train_dir / 'best_model.pkl', model_test_df.drop(columns=['death']),
-                               model_test_df['death'])
+        # Train
+        train_logger = setup_logger(self.model_train_dir / 'classifiers_train.log', f'MODEL_{self.model_id}_TRAIN')
+        Xs_train = model_train_df.drop(columns=['death'])
+        Ys_train = model_train_df['death']
+        selected_features_mask = self.feature_selection_on_train_data(train_logger, Xs_train, Ys_train, n_jobs)
+        Xs_train_selected = Xs_train.loc[:, selected_features_mask]
+        best_model_path = self.fit_on_train_data(train_logger, Xs_train_selected, Ys_train, n_jobs)
 
-    def fit_on_train_data(self, Xs_train, Ys_train, n_jobs):
-        logger = setup_logger(self.model_train_dir / 'classifiers_train.log', f'MODEL_{self.model_id}_TRAIN')
+        # Test
+        Xs_test = model_test_df.drop(columns=['death'])
+        Xs_test_selected = Xs_test.loc[:, selected_features_mask]
+        Ys_test = model_test_df['death']
+        self.test_on_test_data(best_model_path, Xs_test_selected, Ys_test)
 
+    def feature_selection_on_train_data(self, logger, Xs_train, Ys_train, n_jobs):
+        outputs_dir = self.model_train_dir / 'feature_selection'
+        outputs_dir.mkdir(exist_ok=True, parents=True)
+
+        logger.info(f"Performing feature selection with RFECV using the estimator RandomForestClassifier on the training data.")
+        rf = RandomForestClassifier(n_estimators=5, max_depth=5, random_state=self.random_state, n_jobs=n_jobs)
+        cv = StratifiedKFold(shuffle=True, random_state=self.random_state)
+
+        rfecv = RFECV(estimator=rf, cv=cv, scoring=METRIC_NAME_TO_SKLEARN_SCORER[self.metric_to_choose_best_model], n_jobs=n_jobs)
+        rfecv.fit(Xs_train, Ys_train)  # Transform dataset to keep only selected features
+
+        rfecv_results = pd.DataFrame.from_dict(rfecv.cv_results_)
+        rfecv_results.to_csv(outputs_dir / f'rfecv_results.csv', index=False)
+        features_ranking = pd.DataFrame(
+            {'feature': rfecv.feature_names_in_, 'ranking': rfecv.ranking_, 'support': rfecv.support_})
+        features_ranking.to_csv(outputs_dir / 'features_ranking.csv', index=False)
+        logger.info(f'RFECV selected {rfecv.n_features_} features out of {rfecv.n_features_in_}.')
+
+        return rfecv.support_
+
+    def fit_on_train_data(self, logger, Xs_train, Ys_train, n_jobs):
         best_classifiers = {}
         best_classifiers_metrics = {}
         for classifier, param_grid in self.classifiers:
             class_name = classifier.__class__.__name__
             classifier_output_dir = self.model_train_dir / convert_pascal_to_snake_case(class_name)
-            os.makedirs(classifier_output_dir, exist_ok=True)
+            classifier_output_dir.mkdir(exist_ok=True, parents=True)
+
             logger.info(f"Training Classifier {class_name} with hyperparameters tuning using Stratified-KFold CV.")
             grid = GridSearchCV(
                 estimator=classifier,
                 param_grid=param_grid,
-                scoring={'mcc': make_scorer(matthews_corrcoef), 'f1': 'f1', 'auprc': 'average_precision'},
+                scoring=METRIC_NAME_TO_SKLEARN_SCORER,
                 refit=self.metric_to_choose_best_model,
                 return_train_score=True,
                 verbose=1,
@@ -147,7 +193,7 @@ class Model:
                     self.plot_feature_importance(class_name, Xs_train.columns,
                                                  grid.best_estimator_.feature_importances_, classifier_output_dir)
 
-                if class_name == 'DecisionTreeClassifier':
+                if class_name == 'DecisionTreeClassifier' and not DEBUG_MODE:
                     self.plot_decision_tree(grid.best_estimator_, list(Xs_train.columns), classifier_output_dir)
                     if len(Xs_train.columns) >= 2:
                         self.plot_decision_functions_of_features_pairs(Xs_train, Ys_train, grid.best_params_,
@@ -157,6 +203,8 @@ class Model:
             except Exception as e:
                 logger.error(f"Failed to train classifier {class_name} with error: {e}")
 
+        best_classifier_dir = self.model_train_dir / 'best_classifier'
+        best_classifier_dir.mkdir(exist_ok=True, parents=True)
         best_classifiers_df = pd.DataFrame.from_dict(best_classifiers_metrics, orient='index',
                                                      columns=['best_index', 'mean_mcc_on_train_folds',
                                                               'mean_auprc_on_train_folds', 'mean_f1_on_train_folds',
@@ -164,13 +212,14 @@ class Model:
                                                               'mean_auprc_on_held_out_folds',
                                                               'mean_f1_on_held_out_folds'])
         best_classifiers_df.index.name = 'classifier_class'
-        best_classifiers_df.to_csv(self.model_train_dir / 'best_classifier_from_each_class.csv')
+        best_classifiers_df.to_csv(best_classifier_dir / 'best_classifier_from_each_class.csv')
 
         best_classifier_class = best_classifiers_df[f'mean_{self.metric_to_choose_best_model}_on_held_out_folds'].idxmax()
-        logger.info(f"Best classifier (according to mean_{self.metric_to_choose_best_model}_on_held_out_folds): {best_classifier_class}")
+        logger.info(f'Best classifier (according to mean_{self.metric_to_choose_best_model}_on_held_out_folds): {best_classifier_class}')
 
         # Save the best classifier to disk
-        joblib.dump(best_classifiers[best_classifier_class], self.model_train_dir / "best_model.pkl")
+        best_model_path = best_classifier_dir / 'best_model.pkl'
+        joblib.dump(best_classifiers[best_classifier_class], best_model_path)
 
         # Save metadata
         metadata = {
@@ -179,11 +228,13 @@ class Model:
             'sklearn_version': sklearn.__version__,
             'pandas_version': pd.__version__,
         }
-        with open(self.model_train_dir / 'model_metadata.json', 'w') as f:
+        with open(best_classifier_dir / 'model_metadata.json', 'w') as f:
             json.dump(metadata, f)
 
         best_classifier_metrics = best_classifiers_df.loc[[best_classifier_class]].reset_index()
-        best_classifier_metrics.to_csv(self.model_train_dir / 'best_classifier_train_results.csv', index=False)
+        best_classifier_metrics.to_csv(best_classifier_dir / 'best_classifier_train_results.csv', index=False)
+
+        return best_model_path
 
     def plot_feature_importance(self, classifier_name, feature_names, features_importance, output_dir):
         indices = np.argsort(features_importance)[::-1]
@@ -274,7 +325,7 @@ class Model:
         test_results = pd.DataFrame({'mcc': [mcc_on_test], 'auprc': [auprc_on_test], 'f1': [f1_on_test]})
         test_results.to_csv(self.model_test_dir / 'best_classifier_test_results.csv', index=False)
 
-    def create_classifiers_and_param_grids(self, random_state):
+    def create_classifiers_and_param_grids(self):
         knn_grid = {
             'n_neighbors': [5, 10],
             'weights': ['uniform', 'distance'],
@@ -286,7 +337,7 @@ class Model:
             'penalty': ['l1', 'l2'],
             'C': [0.01, 0.1, 1, 10, 100],
             'max_iter': [5000],
-            'random_state': [random_state],
+            'random_state': [self.random_state],
             'class_weight': ['balanced', None],
         }
 
@@ -298,7 +349,7 @@ class Model:
             'learning_rate': ['constant', 'adaptive'],
             'max_iter': [400],
             'early_stopping': [True],
-            'random_state': [random_state],
+            'random_state': [self.random_state],
         }
 
         rfc_grid = {
@@ -306,7 +357,7 @@ class Model:
             'max_depth': [None, 3, 5, 10],
             'min_samples_split': [2, 5, 10],
             'min_samples_leaf': [1, 2, 5],
-            'random_state': [random_state],
+            'random_state': [self.random_state],
             'class_weight': ['balanced', None],
             'bootstrap': [True, False]
         }
@@ -316,7 +367,7 @@ class Model:
             'max_depth': [None, 3, 5, 10],
             'min_samples_split': [2, 5, 10],
             'min_samples_leaf': [1, 2, 5],
-            'random_state': [random_state],
+            'random_state': [self.random_state],
             'learning_rate': [0.05, 0.1],
             'subsample': [0.6, 1],
         }
@@ -325,7 +376,7 @@ class Model:
             'max_depth': [None, 3, 5, 10],
             'min_samples_split': [2, 5, 10],
             'min_samples_leaf': [1, 2, 5],
-            'random_state': [random_state],
+            'random_state': [self.random_state],
             'class_weight': ['balanced', None],
         }
 
