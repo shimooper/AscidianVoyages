@@ -7,11 +7,11 @@ import pandas as pd
 
 
 DEBUG_MODE = False
+DO_FEATURE_SELECTION = False
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR / 'data'
 DATA_PATH = DATA_DIR / 'Final_Data_Voyages.xlsx'
-OUTPUTS_DIR = SCRIPT_DIR / 'outputs'
 
 INCLUDE_CONTROL_ROUTES = [True]
 INCLUDE_SUSPECTED_ROUTES_PARTS = [True, False] if not DEBUG_MODE else [False]

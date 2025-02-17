@@ -19,7 +19,7 @@ from sklearn.feature_selection import RFECV
 
 from utils import setup_logger, convert_pascal_to_snake_case, get_column_groups_sorted, convert_columns_to_int, \
     get_lived_columns_to_consider
-from configuration import METRIC_NAME_TO_SKLEARN_SCORER, DEBUG_MODE, Config
+from configuration import METRIC_NAME_TO_SKLEARN_SCORER, DEBUG_MODE, Config, DO_FEATURE_SELECTION
 
 
 class Model:
@@ -105,7 +105,12 @@ class Model:
         train_logger = setup_logger(self.model_train_dir / 'classifiers_train.log', f'MODEL_{self.model_id}_TRAIN')
         Xs_train = model_train_df.drop(columns=['death'])
         Ys_train = model_train_df['death']
-        selected_features_mask = self.feature_selection_on_train_data(train_logger, Xs_train, Ys_train)
+
+        if DO_FEATURE_SELECTION:
+            selected_features_mask = self.feature_selection_on_train_data(train_logger, Xs_train, Ys_train)
+        else:
+            selected_features_mask = [True] * len(Xs_train.columns)
+
         Xs_train_selected = Xs_train.loc[:, selected_features_mask]
         best_model_path = self.fit_on_train_data(train_logger, Xs_train_selected, Ys_train)
 

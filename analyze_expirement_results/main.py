@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import itertools
 from concurrent.futures import ThreadPoolExecutor, as_completed, ProcessPoolExecutor
 
-from configuration import OUTPUTS_DIR, STRATIFY_TRAIN_TEST_SPLIT, RANDOM_STATE, METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS, \
+from configuration import SCRIPT_DIR, STRATIFY_TRAIN_TEST_SPLIT, RANDOM_STATE, METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS, \
     INCLUDE_SUSPECTED_ROUTES_PARTS, INCLUDE_CONTROL_ROUTES, NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH, Config, DEBUG_MODE
 from preprocess import permanent_preprocess_data, preprocess_data_by_config
 from routes_visualization import plot_timelines
@@ -28,7 +28,7 @@ def run_analysis_of_one_config(config: Config, processed_df):
     aggregate_test_metrics_of_one_configuration(config)
 
 
-def main(cpus):
+def main(outputs_dir, cpus):
     processed_df = permanent_preprocess_data()
 
     if cpus == 1:
@@ -44,7 +44,7 @@ def main(cpus):
             METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS))
         configuration_id = 0
         for include_control_flag, include_suspected_flag, stratify_flag, random_state, metric in flag_combinations:
-            outputs_dir_path = OUTPUTS_DIR / f'configuration_{configuration_id}'
+            outputs_dir_path = outputs_dir / f'configuration_{configuration_id}'
             outputs_dir_path.mkdir(exist_ok=True, parents=True)
             config = Config(
                 include_control_routes=include_control_flag,
@@ -95,6 +95,7 @@ def aggregate_test_metrics_of_one_configuration(config: Config):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run the analysis of the experiment results')
+    parser.add_argument('--outputs_dir', type=str, default='outputs', help='outputs dir name')
     parser.add_argument('--cpus', type=int, default=1, help='Number of CPUs to use')
     args = parser.parse_args()
-    main(args.cpus)
+    main(SCRIPT_DIR / args.outputs_dir, args.cpus)
