@@ -82,7 +82,15 @@ class Model:
         model_test_df = self.convert_routes_to_model_data(test_df, self.number_of_future_days_to_consider_death)
         model_test_df.to_csv(self.model_data_dir / 'test.csv', index=False)
 
-        return model_train_df, model_test_df
+        if not DEBUG_MODE:
+            self.plot_feature_pairs(model_train_df, model_test_df)
+
+        Xs_train = model_train_df.drop(columns=['death'])
+        Ys_train = model_train_df['death']
+        Xs_test = model_test_df.drop(columns=['death'])
+        Ys_test = model_test_df['death']
+
+        return Xs_train, Ys_train, Xs_test, Ys_test
 
     def plot_feature_pairs(self, train_df, test_df):
         full_df = pd.concat([train_df, test_df], axis=0)
@@ -97,15 +105,10 @@ class Model:
         plt.close()
 
     def run_analysis(self):
-        model_train_df, model_test_df = self.create_model_data()
-        if not DEBUG_MODE:
-            self.plot_feature_pairs(model_train_df, model_test_df)
+        Xs_train, Ys_train, Xs_test, Ys_test = self.create_model_data()
 
         # Train
         train_logger = setup_logger(self.model_train_dir / 'classifiers_train.log', f'MODEL_{self.model_id}_TRAIN')
-        Xs_train = model_train_df.drop(columns=['death'])
-        Ys_train = model_train_df['death']
-
         if DO_FEATURE_SELECTION:
             selected_features_mask = self.feature_selection_on_train_data(train_logger, Xs_train, Ys_train)
         else:
@@ -115,9 +118,7 @@ class Model:
         best_model_path = self.fit_on_train_data(train_logger, Xs_train_selected, Ys_train)
 
         # Test
-        Xs_test = model_test_df.drop(columns=['death'])
         Xs_test_selected = Xs_test.loc[:, selected_features_mask]
-        Ys_test = model_test_df['death']
         self.test_on_test_data(best_model_path, Xs_test_selected, Ys_test)
 
     def feature_selection_on_train_data(self, logger, Xs_train, Ys_train):
