@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from utils import get_column_groups_sorted, DEBUG_MODE
+from utils import get_column_groups_sorted
 
 
 def plot_timeline(routes_df, lived_columns, condition_columns, condition_full_name, y_axis_label, output_dir):
@@ -34,15 +34,12 @@ def plot_timeline(routes_df, lived_columns, condition_columns, condition_full_na
     plt.close()
 
 
-def plot_timelines(base_dir):
-    if DEBUG_MODE:
-        return
-
-    routes_path = base_dir / 'full.csv'
+def plot_timelines(config):
+    routes_path = config.data_dir_path / 'full.csv'
     df = pd.read_csv(routes_path)
     lived_columns, temperature_columns, salinity_columns = get_column_groups_sorted(df)
 
-    visualizations_dir = base_dir / 'routes_visualizations'
+    visualizations_dir = config.outputs_dir_path / 'routes_visualizations'
     os.makedirs(visualizations_dir, exist_ok=True)
 
     plot_timeline(df, lived_columns, temperature_columns, 'Temperature', 'Temperature (celsius)', visualizations_dir)

@@ -18,30 +18,24 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.feature_selection import RFECV
 
 from utils import setup_logger, convert_pascal_to_snake_case, get_column_groups_sorted, convert_columns_to_int, \
-    get_lived_columns_to_consider, METRIC_NAME_TO_SKLEARN_SCORER, DEBUG_MODE
+    get_lived_columns_to_consider
+from configuration import METRIC_NAME_TO_SKLEARN_SCORER, DEBUG_MODE, Config
 
 
 class Model:
-    def __init__(self, model_id, model_name, data_path, model_outputs_path, metric_to_choose_best_model, random_state,
-                 number_of_future_days_to_consider_death):
+    def __init__(self, config: Config, model_id, number_of_future_days_to_consider_death):
+        self.config = config
         self.model_id = model_id
-        self.metric_to_choose_best_model = metric_to_choose_best_model
         self.number_of_future_days_to_consider_death = number_of_future_days_to_consider_death
-        self.train_file_path = data_path / 'train.csv'
-        self.test_file_path = data_path / 'test.csv'
 
-        self.output_dir_path = model_outputs_path / model_name
-        self.model_data_dir = self.output_dir_path / 'data'
-        self.model_train_set_path = self.model_data_dir / 'train.csv'
-        self.model_test_set_path = self.model_data_dir / 'test.csv'
-        self.model_train_dir = self.output_dir_path / 'train_outputs'
-        self.model_test_dir = self.output_dir_path / 'test_outputs'
-        self.output_dir_path.mkdir(exist_ok=True, parents=True)
+        output_dir_path = config.models_dir_path / f'future_days_to_consider_death_{number_of_future_days_to_consider_death}'
+        self.model_data_dir = output_dir_path / 'data'
+        self.model_train_dir = output_dir_path / 'train_outputs'
+        self.model_test_dir = output_dir_path / 'test_outputs'
         self.model_data_dir.mkdir(exist_ok=True, parents=True)
         self.model_train_dir.mkdir(exist_ok=True, parents=True)
         self.model_test_dir.mkdir(exist_ok=True, parents=True)
 
-        self.random_state = random_state
         self.classifiers = self.create_classifiers_and_param_grids()
 
     def convert_routes_to_model_data(self, df, number_of_future_days_to_consider_death):
@@ -80,20 +74,17 @@ class Model:
         return four_days_df
 
     def create_model_data(self):
-        train_df = pd.read_csv(self.train_file_path)
+        train_df = pd.read_csv(self.config.data_dir_path / 'train.csv')
         model_train_df = self.convert_routes_to_model_data(train_df, self.number_of_future_days_to_consider_death)
-        model_train_df.to_csv(self.model_train_set_path, index=False)
+        model_train_df.to_csv(self.model_data_dir / 'train.csv', index=False)
 
-        test_df = pd.read_csv(self.test_file_path)
+        test_df = pd.read_csv(self.config.data_dir_path / 'test.csv')
         model_test_df = self.convert_routes_to_model_data(test_df, self.number_of_future_days_to_consider_death)
-        model_test_df.to_csv(self.model_test_set_path, index=False)
+        model_test_df.to_csv(self.model_data_dir / 'test.csv', index=False)
 
         return model_train_df, model_test_df
 
     def plot_feature_pairs(self, train_df, test_df):
-        if DEBUG_MODE:
-            return
-
         full_df = pd.concat([train_df, test_df], axis=0)
 
         full_df['death_label'] = full_df['death'].map({1: 'Dead', 0: 'Alive'}).astype('category')
@@ -105,17 +96,18 @@ class Model:
         plt.savefig(self.model_data_dir / "scatter_plot.png", dpi=300, bbox_inches='tight')
         plt.close()
 
-    def run_analysis(self, n_jobs):
+    def run_analysis(self):
         model_train_df, model_test_df = self.create_model_data()
-        self.plot_feature_pairs(model_train_df, model_test_df)
+        if not DEBUG_MODE:
+            self.plot_feature_pairs(model_train_df, model_test_df)
 
         # Train
         train_logger = setup_logger(self.model_train_dir / 'classifiers_train.log', f'MODEL_{self.model_id}_TRAIN')
         Xs_train = model_train_df.drop(columns=['death'])
         Ys_train = model_train_df['death']
-        selected_features_mask = self.feature_selection_on_train_data(train_logger, Xs_train, Ys_train, n_jobs)
+        selected_features_mask = self.feature_selection_on_train_data(train_logger, Xs_train, Ys_train)
         Xs_train_selected = Xs_train.loc[:, selected_features_mask]
-        best_model_path = self.fit_on_train_data(train_logger, Xs_train_selected, Ys_train, n_jobs)
+        best_model_path = self.fit_on_train_data(train_logger, Xs_train_selected, Ys_train)
 
         # Test
         Xs_test = model_test_df.drop(columns=['death'])
@@ -123,15 +115,15 @@ class Model:
         Ys_test = model_test_df['death']
         self.test_on_test_data(best_model_path, Xs_test_selected, Ys_test)
 
-    def feature_selection_on_train_data(self, logger, Xs_train, Ys_train, n_jobs):
+    def feature_selection_on_train_data(self, logger, Xs_train, Ys_train):
         outputs_dir = self.model_train_dir / 'feature_selection'
         outputs_dir.mkdir(exist_ok=True, parents=True)
 
         logger.info(f"Performing feature selection with RFECV using the estimator RandomForestClassifier on the training data.")
-        rf = RandomForestClassifier(n_estimators=5, max_depth=5, random_state=self.random_state, n_jobs=n_jobs)
-        cv = StratifiedKFold(shuffle=True, random_state=self.random_state)
+        rf = RandomForestClassifier(n_estimators=5, max_depth=5, random_state=self.config.random_state, n_jobs=self.config.cpus)
+        cv = StratifiedKFold(shuffle=True, random_state=self.config.random_state)
 
-        rfecv = RFECV(estimator=rf, cv=cv, scoring=METRIC_NAME_TO_SKLEARN_SCORER[self.metric_to_choose_best_model], n_jobs=n_jobs)
+        rfecv = RFECV(estimator=rf, cv=cv, scoring=METRIC_NAME_TO_SKLEARN_SCORER[self.config.metric], n_jobs=self.config.cpus)
         rfecv.fit(Xs_train, Ys_train)  # Transform dataset to keep only selected features
 
         rfecv_results = pd.DataFrame.from_dict(rfecv.cv_results_)
@@ -143,7 +135,7 @@ class Model:
 
         return rfecv.support_
 
-    def fit_on_train_data(self, logger, Xs_train, Ys_train, n_jobs):
+    def fit_on_train_data(self, logger, Xs_train, Ys_train):
         best_classifiers = {}
         best_classifiers_metrics = {}
         for classifier, param_grid in self.classifiers:
@@ -156,10 +148,10 @@ class Model:
                 estimator=classifier,
                 param_grid=param_grid,
                 scoring=METRIC_NAME_TO_SKLEARN_SCORER,
-                refit=self.metric_to_choose_best_model,
+                refit=self.config.metric,
                 return_train_score=True,
                 verbose=1,
-                n_jobs=n_jobs
+                n_jobs=self.config.cpus
             )
 
             try:
@@ -214,8 +206,8 @@ class Model:
         best_classifiers_df.index.name = 'classifier_class'
         best_classifiers_df.to_csv(best_classifier_dir / 'best_classifier_from_each_class.csv')
 
-        best_classifier_class = best_classifiers_df[f'mean_{self.metric_to_choose_best_model}_on_held_out_folds'].idxmax()
-        logger.info(f'Best classifier (according to mean_{self.metric_to_choose_best_model}_on_held_out_folds): {best_classifier_class}')
+        best_classifier_class = best_classifiers_df[f'mean_{self.config.metric}_on_held_out_folds'].idxmax()
+        logger.info(f'Best classifier (according to mean_{self.config.metric}_on_held_out_folds): {best_classifier_class}')
 
         # Save the best classifier to disk
         best_model_path = best_classifier_dir / 'best_model.pkl'
@@ -337,7 +329,7 @@ class Model:
             'penalty': ['l1', 'l2'],
             'C': [0.01, 0.1, 1, 10, 100],
             'max_iter': [5000],
-            'random_state': [self.random_state],
+            'random_state': [self.config.random_state],
             'class_weight': ['balanced', None],
         }
 
@@ -349,7 +341,7 @@ class Model:
             'learning_rate': ['constant', 'adaptive'],
             'max_iter': [400],
             'early_stopping': [True],
-            'random_state': [self.random_state],
+            'random_state': [self.config.random_state],
         }
 
         rfc_grid = {
@@ -357,9 +349,19 @@ class Model:
             'max_depth': [None, 3, 5, 10],
             'min_samples_split': [2, 5, 10],
             'min_samples_leaf': [1, 2, 5],
-            'random_state': [self.random_state],
+            'random_state': [self.config.random_state],
             'class_weight': ['balanced', None],
             'bootstrap': [True, False]
+        }
+
+        rfc_grid_debug = {
+            'n_estimators': [5, 20],
+            'max_depth': [None],
+            'min_samples_split': [2],
+            'min_samples_leaf': [1],
+            'random_state': [self.config.random_state],
+            'class_weight': ['balanced', None],
+            'bootstrap': [True]
         }
 
         gbc_grid = {
@@ -367,7 +369,7 @@ class Model:
             'max_depth': [None, 3, 5, 10],
             'min_samples_split': [2, 5, 10],
             'min_samples_leaf': [1, 2, 5],
-            'random_state': [self.random_state],
+            'random_state': [self.config.random_state],
             'learning_rate': [0.05, 0.1],
             'subsample': [0.6, 1],
         }
@@ -376,7 +378,15 @@ class Model:
             'max_depth': [None, 3, 5, 10],
             'min_samples_split': [2, 5, 10],
             'min_samples_leaf': [1, 2, 5],
-            'random_state': [self.random_state],
+            'random_state': [self.config.random_state],
+            'class_weight': ['balanced', None],
+        }
+
+        decision_tree_grid_debug = {
+            'max_depth': [None, 5],
+            'min_samples_split': [2],
+            'min_samples_leaf': [1],
+            'random_state': [self.config.random_state],
             'class_weight': ['balanced', None],
         }
 
@@ -384,7 +394,7 @@ class Model:
             # (KNeighborsClassifier(), knn_grid),
             # (LogisticRegression(), logistic_regression_grid),
             # (MLPClassifier(), mlp_grid),
-            (RandomForestClassifier(), rfc_grid),
+            (RandomForestClassifier(), rfc_grid if not DEBUG_MODE else rfc_grid_debug),
             # (GradientBoostingClassifier(), gbc_grid),
-            (DecisionTreeClassifier(), decision_tree_grid)
+            (DecisionTreeClassifier(), decision_tree_grid if not DEBUG_MODE else decision_tree_grid_debug)
         ]

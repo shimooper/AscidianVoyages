@@ -1,48 +1,7 @@
 import os
-from pathlib import Path
 import pandas as pd
 import logging
 import re
-from sklearn.metrics import make_scorer, matthews_corrcoef
-
-DEBUG_MODE = True
-
-SCRIPT_DIR = Path(__file__).resolve().parent
-DATA_DIR = SCRIPT_DIR / 'data'
-DATA_PATH = DATA_DIR / 'Final_Data_Voyages.xlsx'
-OUTPUTS_DIR = SCRIPT_DIR / 'outputs'
-
-INCLUDE_CONTROL_ROUTES = [
-    True,
-    # False
-]
-INCLUDE_SUSPECTED_ROUTES_PARTS = [
-    # True,
-    False
-]
-STRATIFY_TRAIN_TEST_SPLIT = [
-    # True,
-    False
-]
-RANDOM_STATE = [
-    42,
-    # 0
-]
-METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS = [
-    'mcc',
-    # 'f1'
-]
-NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH = [
-    0,
-    1,
-    2,
-    3,
-    4
-]
-TEST_SET_SIZE = 0.25
-N_JOBS = -1  # Use all available CPUs
-
-METRIC_NAME_TO_SKLEARN_SCORER = {'mcc': make_scorer(matthews_corrcoef), 'f1': 'f1', 'auprc': 'average_precision'}
 
 
 def variable_equals_value(variable, value):
@@ -100,25 +59,3 @@ def get_lived_columns_to_consider(row, day, number_of_future_days_to_consider_de
                               for offset in range(0, number_of_future_days_to_consider_death + 1)
                               if f'Lived {day + offset}' in row.index and pd.notna(row[f'Lived {day + offset}'])]
     return lived_cols_to_consider
-
-
-def routes_statistics(df):
-    count = len(df)
-    count_death = df['dying_day'].notna().sum()
-    count_survived = df['dying_day'].isna().sum()
-
-    routes_winter_df = df[df['Season'] == 'winter']
-    count_winter = len(routes_winter_df)
-    count_winter_death = routes_winter_df['dying_day'].notna().sum()
-    count_winter_survived = routes_winter_df['dying_day'].isna().sum()
-
-    routes_summer_df = df[df['Season'] == 'summer']
-    count_summer = len(routes_summer_df)
-    count_summer_death = routes_summer_df['dying_day'].notna().sum()
-    count_summer_survived = routes_summer_df['dying_day'].isna().sum()
-
-    text = f"There are {count} routes in the dataset. {count_death} of them ended with death, and {count_survived} did not.\n" \
-           f"{count_winter} routes are in winter season, {count_winter_death} of them ended with death, and {count_winter_survived} did not.\n" \
-           f"{count_summer} routes are in summer season, {count_summer_death} of them ended with death, and {count_summer_survived} did not."
-
-    return text
