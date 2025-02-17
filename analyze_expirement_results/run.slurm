@@ -19,4 +19,4 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate microbializer
 export PATH=$CONDA_PREFIX/bin:$PATH
 
-python ~/ships/analyze_expirement_results/main.py --cpus 30
+python ~/ships/analyze_expirement_results/main.py --cpus $SLURM_JOB_CPUS_PER_NODE

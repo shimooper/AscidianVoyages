@@ -38,11 +38,12 @@ def main(cpus):
 
     with pool_executor_class(max_workers=cpus) as executor:
         futures = []
-        configuration_id = 0
-        for include_control_flag, include_suspected_flag, stratify_flag, random_state, metric in itertools.product(
-                INCLUDE_CONTROL_ROUTES, INCLUDE_SUSPECTED_ROUTES_PARTS, STRATIFY_TRAIN_TEST_SPLIT, RANDOM_STATE,
-                METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS):
 
+        flag_combinations = list(itertools.product(
+            INCLUDE_CONTROL_ROUTES, INCLUDE_SUSPECTED_ROUTES_PARTS, STRATIFY_TRAIN_TEST_SPLIT, RANDOM_STATE,
+            METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS))
+        configuration_id = 0
+        for include_control_flag, include_suspected_flag, stratify_flag, random_state, metric in flag_combinations:
             outputs_dir_path = OUTPUTS_DIR / f'configuration_{configuration_id}'
             outputs_dir_path.mkdir(exist_ok=True, parents=True)
             config = Config(
@@ -52,7 +53,7 @@ def main(cpus):
                 random_state=random_state,
                 metric=metric,
                 configuration_id=configuration_id,
-                cpus=cpus,
+                cpus=cpus // len(flag_combinations),
                 outputs_dir_path=outputs_dir_path,
                 data_dir_path=outputs_dir_path / 'data',
                 models_dir_path=outputs_dir_path / 'models'

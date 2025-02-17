@@ -17,21 +17,26 @@ def permanent_preprocess_data():
     logger = setup_logger(outputs_preprocess_dir / 'preprocess.log', 'PREPROCESS')
 
     df = pd.read_excel(DATA_PATH, sheet_name='final_data')
+    logger.info(f"Loaded data from {DATA_PATH}.")
+
+    df.replace("\\", pd.NA, inplace=True)
+    logger.info(f"Replaced all backslashes with NaN values.")
 
     # Convert Temp, Salinity, Lived columns to integers
-    df.replace("\\", pd.NA, inplace=True)
     lived_columns, temperature_columns, salinity_columns = get_column_groups_sorted(df)
-
     for col in lived_columns + temperature_columns + salinity_columns + ['Suspected from time point']:
         df[col] = pd.to_numeric(df[col], errors='raise').astype("Int64")
+    logger.info(f"Converted Temp, Salinity, Lived columns to integers.")
 
     replace_lived_indicators(df, lived_columns)
+    logger.info(f"Replaced 1 with 0 and 0 with 1 in Lived columns.")
     add_dying_day(df, lived_columns, temperature_columns, salinity_columns)
+    logger.info(f"Added dying_day column.")
     add_acclimation_days(df)
+    logger.info(f"Added acclimation days columns.")
 
     df.to_csv(data_processed_path, index=False)
-
-    logger.info(f"{routes_statistics(df)}\nPreprocessed data saved to {data_processed_path}")
+    logger.info(f"Preprocessed data saved to {data_processed_path}\n{routes_statistics(df)}")
 
     return df
 
