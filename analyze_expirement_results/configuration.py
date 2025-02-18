@@ -15,9 +15,9 @@ DATA_PATH = DATA_DIR / 'Final_Data_Voyages.xlsx'
 INCLUDE_CONTROL_ROUTES = [True]
 INCLUDE_SUSPECTED_ROUTES_PARTS = [True, False] if not DEBUG_MODE else [False]
 STRATIFY_TRAIN_TEST_SPLIT = [True, False] if not DEBUG_MODE else [False]
-RANDOM_STATE = [42]
-METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS = ['mcc', 'f1'] if not DEBUG_MODE else ['mcc']
-NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH = [0, 1, 2, 3, 4]
+RANDOM_STATE = [42, 5] if not DEBUG_MODE else [42]
+METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS = ['mcc', 'f1', 'auprc'] if not DEBUG_MODE else ['mcc']
+NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH = [0, 1, 2, 3, 4] if not DEBUG_MODE else [0, 1]
 TEST_SET_SIZE = 0.25
 
 METRIC_NAME_TO_SKLEARN_SCORER = {'mcc': make_scorer(matthews_corrcoef), 'f1': 'f1', 'auprc': 'average_precision'}
