@@ -6,10 +6,11 @@ import itertools
 from concurrent.futures import ThreadPoolExecutor, as_completed, ProcessPoolExecutor
 
 from configuration import SCRIPT_DIR, STRATIFY_TRAIN_TEST_SPLIT, RANDOM_STATE, METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS, \
-    INCLUDE_SUSPECTED_ROUTES_PARTS, INCLUDE_CONTROL_ROUTES, NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH, Config, DEBUG_MODE
+    INCLUDE_SUSPECTED_ROUTES_PARTS, INCLUDE_CONTROL_ROUTES, NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH, Config, str_to_bool, \
+    DEFAULT_OPTUNA_NUMBER_OF_TRIALS, DEBUG_MODE
 from preprocess import permanent_preprocess_data, preprocess_data_by_config
 from routes_visualization import plot_timelines
-from model import Model
+from model import ScikitModel, OptunaModel
 
 
 def run_analysis_of_one_config(config: Config, processed_df):
@@ -21,14 +22,15 @@ def run_analysis_of_one_config(config: Config, processed_df):
 
     model_id = 0
     for number_of_future_days in NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH:
-        model_instance = Model(config, model_id, number_of_future_days)
+        model_class = OptunaModel if config.train_with_optuna else ScikitModel
+        model_instance = model_class(config, model_id, number_of_future_days)
         model_instance.run_analysis()
         model_id += 1
 
     aggregate_test_metrics_of_one_configuration(config)
 
 
-def main(outputs_dir, cpus):
+def main(outputs_dir, cpus, do_feature_selection, train_with_optuna, optuna_number_of_trials):
     processed_df = permanent_preprocess_data()
 
     if cpus == 1:
@@ -56,12 +58,18 @@ def main(outputs_dir, cpus):
                 cpus=cpus // len(flag_combinations),
                 outputs_dir_path=outputs_dir_path,
                 data_dir_path=outputs_dir_path / 'data',
-                models_dir_path=outputs_dir_path / 'models'
+                models_dir_path=outputs_dir_path / 'models',
+                do_feature_selection=do_feature_selection,
+                train_with_optuna=train_with_optuna,
+                optuna_number_of_trials=optuna_number_of_trials
             )
             config.to_csv(outputs_dir_path / 'config.csv')
 
             futures.append(executor.submit(run_analysis_of_one_config, config, processed_df))
             configuration_id += 1
+
+        for future in as_completed(futures):
+            future.result()
 
 
 def aggregate_test_metrics_of_one_configuration(config: Config):
@@ -97,5 +105,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run the analysis of the experiment results')
     parser.add_argument('--outputs_dir', type=str, default='outputs', help='outputs dir name')
     parser.add_argument('--cpus', type=int, default=1, help='Number of CPUs to use')
+    parser.add_argument('--do_feature_selection', type=str_to_bool, default=True)
+    parser.add_argument('--train_with_optuna', type=str_to_bool, default=True)
+    parser.add_argument('--optuna_number_of_trials', type=int, default=DEFAULT_OPTUNA_NUMBER_OF_TRIALS)
+
     args = parser.parse_args()
-    main(SCRIPT_DIR / args.outputs_dir, args.cpus)
+    main(SCRIPT_DIR / args.outputs_dir, args.cpus, args.do_feature_selection, args.train_with_optuna,
+         args.optuna_number_of_trials)

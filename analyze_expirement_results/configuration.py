@@ -7,7 +7,6 @@ import pandas as pd
 
 
 DEBUG_MODE = False
-DO_FEATURE_SELECTION = False
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR / 'data'
@@ -23,6 +22,8 @@ TEST_SET_SIZE = 0.25
 
 METRIC_NAME_TO_SKLEARN_SCORER = {'mcc': make_scorer(matthews_corrcoef), 'f1': 'f1', 'auprc': 'average_precision'}
 
+DEFAULT_OPTUNA_NUMBER_OF_TRIALS = 1000 if not DEBUG_MODE else 10
+
 
 @dataclass
 class Config:
@@ -36,6 +37,9 @@ class Config:
     outputs_dir_path: Path
     data_dir_path: Path
     models_dir_path: Path
+    do_feature_selection: bool
+    train_with_optuna: bool
+    optuna_number_of_trials: int
     test_set_size: float = TEST_SET_SIZE
 
     def to_csv(self, path: Path):

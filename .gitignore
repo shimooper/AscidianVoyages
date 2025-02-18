@@ -1,3 +1,4 @@
 .idea/
 __pycache__/
 analyze_expirement_results/outputs/
+analyze_expirement_results/outputs_optuna/

@@ -4,7 +4,8 @@
 #SBATCH --account=gpu-research
 #SBATCH --partition=cpu-killable
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=40
+#SBATCH --cpus-per-task=64
+#SBATCH --mem=64G
 #SBATCH --output=/home/ai_center/ai_users/yairshimony/ships/analyze_expirement_results/%j.out
 #SBATCH --error=/home/ai_center/ai_users/yairshimony/ships/analyze_expirement_results/%j.err
 
@@ -19,4 +20,4 @@ source ~/miniconda/etc/profile.d/conda.sh
 conda activate ships
 export PATH=$CONDA_PREFIX/bin:$PATH
 
-python ~/ships/analyze_expirement_results/main.py --cpus $SLURM_JOB_CPUS_PER_NODE --outputs_dir outputs_no_feature_selection
+python ~/ships/analyze_expirement_results/main.py --cpus $SLURM_JOB_CPUS_PER_NODE --outputs_dir outputs_optuna
