@@ -53,13 +53,21 @@ def preprocess_data_by_config(config: Config, routes_df):
     processed_routes_path = config.data_dir_path / 'full.csv'
     routes_df.to_csv(processed_routes_path, index=False)
 
+    ship_names_and_seasons = routes_df[['Name', 'Season']].drop_duplicates()
+    ship_names_and_seasons_no_control = ship_names_and_seasons[ship_names_and_seasons['Name'] != 'CONTROL']
+
     if config.stratify:
-        routes_df['stratify_group'] = routes_df['Season'] + '_' + routes_df['dying_day'].notna().astype(int).astype(str)
-        stratify_column = routes_df['stratify_group']
+        # routes_df['stratify_group'] = routes_df['Season'] + '_' + routes_df['dying_day'].notna().astype(int).astype(str)
+        # stratify_column = routes_df['stratify_group']
+        stratify_column = routes_df['Season']
     else:
         stratify_column = None
 
-    train_df, test_df = train_test_split(routes_df, test_size=config.test_set_size, random_state=config.random_state, stratify=stratify_column)
+    train_ship_names_df, test_ship_names_df = train_test_split(ship_names_and_seasons_no_control, test_size=config.test_set_size,
+                                                               random_state=config.random_state, stratify=stratify_column)
+    train_df = routes_df[routes_df['Name'].isin(list(train_ship_names_df['Name']) + ['CONTROL'])]
+    test_df = routes_df[routes_df['Name'].isin(test_ship_names_df['Name'])]
+
     train_df.to_csv(config.data_dir_path / 'train.csv', index=False)
     test_df.to_csv(config.data_dir_path / 'test.csv', index=False)
 

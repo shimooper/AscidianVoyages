@@ -15,6 +15,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.neural_network import MLPClassifier
+from xgboost import XGBClassifier
 from sklearn.feature_selection import RFECV
 
 import optuna
@@ -25,12 +26,12 @@ from configuration import METRIC_NAME_TO_SKLEARN_SCORER, DEBUG_MODE, Config
 
 
 class Model:
-    def __init__(self, config: Config, model_id, number_of_future_days_to_consider_death):
+    def __init__(self, config: Config, model_id, number_of_days_to_consider):
         self.config = config
         self.model_id = model_id
-        self.number_of_future_days_to_consider_death = number_of_future_days_to_consider_death
+        self.number_of_days_to_consider = number_of_days_to_consider
 
-        output_dir_path = config.models_dir_path / f'future_days_to_consider_death_{number_of_future_days_to_consider_death}'
+        output_dir_path = config.models_dir_path / f'days_to_consider_{number_of_days_to_consider}'
         self.model_data_dir = output_dir_path / 'data'
         self.model_train_dir = output_dir_path / 'train_outputs'
         self.model_test_dir = output_dir_path / 'test_outputs'
@@ -38,48 +39,38 @@ class Model:
         self.model_train_dir.mkdir(exist_ok=True, parents=True)
         self.model_test_dir.mkdir(exist_ok=True, parents=True)
 
-    def convert_routes_to_model_data(self, df, number_of_future_days_to_consider_death):
+    def convert_routes_to_model_data(self, df, number_of_days_to_consider):
         lived_columns, temperature_columns, salinity_columns = get_column_groups_sorted(df)
 
-        four_days_data = []
+        days_data = []
         for index, row in df.iterrows():
             for col in lived_columns[-1:2:-1]:
                 col_day = int(col.split(' ')[1])
                 if pd.isna(row[f'Lived {col_day}']):
                     continue
 
-                temperature_columns = [f'Temp {col_day - i}' for i in range(4)]
-                salinity_columns = [f'Salinity {col_day - i}' for i in range(4)]
-                lived_cols_to_consider = get_lived_columns_to_consider(row, col_day, number_of_future_days_to_consider_death)
+                temperature_columns = {f'Day {-i} Temperature': row[f'Temp {col_day - i}'] for i in range(number_of_days_to_consider)}
+                salinity_columns = {f'Day {-i} Salinity': row[f'Salinity {col_day - i}'] for i in range(number_of_days_to_consider)}
+                lived_cols_to_consider = get_lived_columns_to_consider(row, col_day, self.config.number_of_future_days_to_consider_death)
+
                 new_row = {
-                    'current day temperature': row[f'Temp {col_day}'],
-                    'previous day temperature': row[f'Temp {col_day - 1}'],
-                    '2 days ago temperature': row[f'Temp {col_day - 2}'],
-                    '3 days ago temperature': row[f'Temp {col_day - 3}'],
-                    'max temperature': row[temperature_columns].max(),
-                    'min temperature': row[temperature_columns].min(),
-                    'current day salinity': row[f'Salinity {col_day}'],
-                    'previous day salinity': row[f'Salinity {col_day - 1}'],
-                    '2 days ago salinity': row[f'Salinity {col_day - 2}'],
-                    '3 days ago salinity': row[f'Salinity {col_day - 3}'],
-                    'max salinity': row[salinity_columns].max(),
-                    'min salinity': row[salinity_columns].min(),
+                    **temperature_columns, **salinity_columns,
                     'death': any(row[lived_cols_to_consider]),
                 }
-                four_days_data.append(new_row)
+                days_data.append(new_row)
 
-        four_days_df = pd.DataFrame(four_days_data)
-        convert_columns_to_int(four_days_df)
+        days_df = pd.DataFrame(days_data)
+        convert_columns_to_int(days_df)
 
-        return four_days_df
+        return days_df
 
     def create_model_data(self):
         train_df = pd.read_csv(self.config.data_dir_path / 'train.csv')
-        model_train_df = self.convert_routes_to_model_data(train_df, self.number_of_future_days_to_consider_death)
+        model_train_df = self.convert_routes_to_model_data(train_df, self.number_of_days_to_consider)
         model_train_df.to_csv(self.model_data_dir / 'train.csv', index=False)
 
         test_df = pd.read_csv(self.config.data_dir_path / 'test.csv')
-        model_test_df = self.convert_routes_to_model_data(test_df, self.number_of_future_days_to_consider_death)
+        model_test_df = self.convert_routes_to_model_data(test_df, self.number_of_days_to_consider)
         model_test_df.to_csv(self.model_data_dir / 'test.csv', index=False)
 
         if not DEBUG_MODE:
@@ -247,7 +238,7 @@ class ScikitModel(Model):
             classifier_output_dir = self.model_train_dir / convert_pascal_to_snake_case(class_name)
             classifier_output_dir.mkdir(exist_ok=True, parents=True)
 
-            logger.info(f"Training Classifier {class_name} with hyperparameters tuning using Stratified-KFold CV.")
+            logger.info(f"Training Classifier {class_name} with hyperparameters tuning using GridSearch and Stratified-KFold CV.")
             grid = GridSearchCV(
                 estimator=classifier,
                 param_grid=param_grid,
@@ -285,7 +276,8 @@ class ScikitModel(Model):
                                                         grid_results['mean_test_auprc'][grid.best_index_],
                                                         grid_results['mean_test_f1'][grid.best_index_])
 
-                if class_name in ['DecisionTreeClassifier', 'RandomForestClassifier', 'GradientBoostingClassifier']:
+                if class_name in ['DecisionTreeClassifier', 'RandomForestClassifier', 'GradientBoostingClassifier',
+                                  'XGBClassifier']:
                     self.plot_feature_importance(class_name, Xs_train.columns,
                                                  grid.best_estimator_.feature_importances_, classifier_output_dir)
 
@@ -405,13 +397,34 @@ class ScikitModel(Model):
             'class_weight': ['balanced', None],
         }
 
+        xgboost_grid = {
+            'learning_rate': [0.01, 0.05, 0.1],
+            'n_estimators': [10, 50, 200],
+            'max_depth': [3, 5, 10],
+            'booster': ['dart'],
+            'n_jobs': [1],
+            'random_state': [self.config.random_state],
+            'subsample': [0.6, 1],
+        }
+
+        xgboost_grid_debug = {
+            'learning_rate': [0.01],
+            'n_estimators': [10],
+            'max_depth': [3],
+            'booster': ['dart'],
+            'n_jobs': [1],
+            'random_state': [self.config.random_state],
+            'subsample': [1],
+        }
+
         return [
             # (KNeighborsClassifier(), knn_grid),
             # (LogisticRegression(), logistic_regression_grid),
             # (MLPClassifier(), mlp_grid),
             (RandomForestClassifier(), rfc_grid if not DEBUG_MODE else rfc_grid_debug),
             # (GradientBoostingClassifier(), gbc_grid),
-            (DecisionTreeClassifier(), decision_tree_grid if not DEBUG_MODE else decision_tree_grid_debug)
+            (DecisionTreeClassifier(), decision_tree_grid if not DEBUG_MODE else decision_tree_grid_debug),
+            (XGBClassifier(), xgboost_grid if not DEBUG_MODE else xgboost_grid_debug)
         ]
 
 
