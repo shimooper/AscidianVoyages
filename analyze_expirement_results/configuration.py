@@ -19,6 +19,7 @@ RANDOM_STATE = [5]
 NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH = [0]
 METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS = ['mcc', 'f1', 'auprc'] if not DEBUG_MODE else ['mcc']
 TEST_SET_SIZE = 0.25
+VALIDATION_SET_SIZE = 0.2  # relevant only in case of neural networks
 NUMBER_OF_DAYS_TO_CONSIDER = [1, 2, 3, 4]
 
 METRIC_NAME_TO_SKLEARN_SCORER = {'mcc': make_scorer(matthews_corrcoef), 'f1': 'f1', 'auprc': 'average_precision'}
@@ -43,6 +44,8 @@ class Config:
     train_with_optuna: bool
     optuna_number_of_trials: int
     test_set_size: float = TEST_SET_SIZE
+    nn_validation_set_size: float = VALIDATION_SET_SIZE
+    nn_max_epochs: int = 100
 
     def to_csv(self, path: Path):
         config_df = pd.DataFrame(list(asdict(self).items()), columns=['key', 'value'])

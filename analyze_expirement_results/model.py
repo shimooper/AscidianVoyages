@@ -17,12 +17,20 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.neural_network import MLPClassifier
 from xgboost import XGBClassifier
 from sklearn.feature_selection import RFECV
+from sklearn.model_selection import train_test_split
+
+import torch
+from torch.utils.data import DataLoader, TensorDataset
+from lightning.pytorch import Trainer, seed_everything
+from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
+
 
 import optuna
 
 from utils import setup_logger, convert_pascal_to_snake_case, get_column_groups_sorted, convert_columns_to_int, \
     get_lived_columns_to_consider
 from configuration import METRIC_NAME_TO_SKLEARN_SCORER, DEBUG_MODE, Config
+from model_lstm import LSTMModel
 
 
 class Model:
@@ -426,6 +434,96 @@ class ScikitModel(Model):
             (DecisionTreeClassifier(), decision_tree_grid if not DEBUG_MODE else decision_tree_grid_debug),
             (XGBClassifier(), xgboost_grid if not DEBUG_MODE else xgboost_grid_debug)
         ]
+
+    def train_lstm(self, logger, Xs_train, Ys_train):
+        seed_everything(self.config.random_state, workers=True)
+
+        # Train-validation split
+        X_train, X_val, y_train, y_val = train_test_split(Xs_train, Ys_train,
+                                                          test_size=self.config.nn_validation_set_size,
+                                                          random_state=self.config.random_state, stratify=Ys_train)
+        train_dataset = TensorDataset(torch.tensor(X_train), torch.tensor(y_train).unsqueeze(1))
+        val_dataset = TensorDataset(torch.tensor(X_val), torch.tensor(y_val).unsqueeze(1))
+
+        # Hyperparameter grid
+        hyperparameter_grid = {
+            'hidden_size': [8, 16, 32],
+            'lr': [1e-4, 1e-3, 1e-2],
+            'batch_size': [16, 32, 64]
+        }
+
+        all_results = []
+
+        # Grid search
+        for hidden_size, lr, batch_size in zip(hyperparameter_grid['hidden_size'], hyperparameter_grid['lr'],
+                                               hyperparameter_grid['batch_size']):
+            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+            val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+
+            model = LSTMModel(hidden_size=hidden_size, lr=lr)
+            classifier_output_dir = self.model_train_dir / 'lstm'
+            checkpoint_callback = ModelCheckpoint(monitor='val_loss', mode='min', save_top_k=1,
+                                                  dirpath=classifier_output_dir / 'checkpoints')
+            trainer = Trainer(
+                max_epochs=self.config.nn_max_epochs,
+                logger=False,
+                callbacks=[EarlyStopping(monitor='val_loss', patience=3, mode='min'), checkpoint_callback],
+                deterministic=True
+            )
+            trainer.fit(model, train_loader, val_loader)
+
+            best_model_path = checkpoint_callback.best_model_path
+            model.load_state_dict(torch.load(best_model_path))
+            model.eval()
+
+            with torch.no_grad():
+                y_train_pred_probs = torch.cat([model(x) for x, _ in train_loader]).cpu().numpy().flatten()
+                y_train_pred = (y_train_pred_probs > 0.5).astype(int)
+                y_val_pred_probs = torch.cat([model(x) for x, _ in val_loader]).cpu().numpy().flatten()
+                y_val_pred = (y_val_pred_probs > 0.5).astype(int)
+
+            train_mcc = matthews_corrcoef(y_train, y_train_pred)
+            train_f1 = f1_score(y_train, y_train_pred)
+            train_auprc = average_precision_score(y_train, y_train_pred_probs)
+            val_mcc = matthews_corrcoef(y_val, y_val_pred)
+            val_f1 = f1_score(y_val, y_val_pred)
+            val_auprc = average_precision_score(y_val, y_val_pred_probs)
+
+            all_results.append(
+                {'hidden_size': hidden_size, 'lr': lr, 'batch_size': batch_size, 'val_mcc': val_mcc, 'val_f1': val_f1,
+                 'val_auprc': val_auprc, 'train_mcc': train_mcc, 'train_f1': train_f1, 'train_auprc': train_auprc})
+
+        # Save all hyperparameter results to CSV
+        results_df = pd.DataFrame(all_results)
+        results_df.to_csv('hyperparameter_results.csv', index=False)
+        print("Hyperparameter search results saved to 'hyperparameter_results.csv'")
+
+        print(f"Best hyperparameters: {best_params}")
+
+        # Retrain on the full dataset with the best hyperparameters
+        final_dataset = TensorDataset(torch.tensor(X), torch.tensor(y).unsqueeze(1))
+        final_loader = DataLoader(final_dataset, batch_size=best_params['batch_size'], shuffle=True)
+
+        final_model = LSTMModel(hidden_size=best_params['hidden_size'], lr=best_params['lr'])
+        checkpoint_callback_final = ModelCheckpoint(monitor='val_loss', mode='min', save_top_k=1, dirpath='checkpoints',
+                                                    filename='best_final_model')
+        final_trainer = pl.Trainer(
+            max_epochs=20,
+            enable_checkpointing=True,
+            logger=False,
+            callbacks=[EarlyStopping(monitor='val_loss', patience=3, mode='min'), checkpoint_callback_final]
+        )
+        final_trainer.fit(final_model, final_loader)
+
+        # Load best final model before saving
+        best_final_model_path = checkpoint_callback_final.best_model_path
+        final_model.load_state_dict(torch.load(best_final_model_path))
+        final_model.eval()
+
+        # Save final model
+        final_model_state = final_model.state_dict()
+        torch.save(final_model_state, 'final_lstm_model.pth')
+        print("Final model saved as 'final_lstm_model.pth'")
 
 
 class OptunaModel(Model):
