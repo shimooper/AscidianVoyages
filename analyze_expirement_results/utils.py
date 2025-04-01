@@ -2,6 +2,17 @@ import os
 import pandas as pd
 import logging
 import re
+from collections import defaultdict
+
+
+METRICS_NAME_TO_AVERAGE_METRIC_NAME = {
+    'val_mcc': 'mean_test_mcc',
+    'val_auprc': 'mean_test_auprc',
+    'val_f1': 'mean_test_f1',
+    'train_mcc': 'mean_train_mcc',
+    'train_auprc': 'mean_train_auprc',
+    'train_f1': 'mean_train_f1',
+}
 
 
 def variable_equals_value(variable, value):
@@ -59,3 +70,17 @@ def get_lived_columns_to_consider(row, day, number_of_future_days_to_consider_de
                               for offset in range(0, number_of_future_days_to_consider_death + 1)
                               if f'Lived {day + offset}' in row.index and pd.notna(row[f'Lived {day + offset}'])]
     return lived_cols_to_consider
+
+
+def merge_dicts_average(dict_list):
+    sum_dict = defaultdict(float)
+    count_dict = defaultdict(int)
+
+    # Sum values and count occurrences
+    for d in dict_list:
+        for key, value in d.items():
+            sum_dict[key] += value
+            count_dict[key] += 1
+
+    # Compute the average
+    return {METRICS_NAME_TO_AVERAGE_METRIC_NAME[key]: sum_dict[key] / count_dict[key] for key in sum_dict}
