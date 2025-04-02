@@ -6,7 +6,7 @@ from sklearn.metrics import make_scorer, matthews_corrcoef
 import pandas as pd
 
 
-DEBUG_MODE = False
+DEBUG_MODE = True
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR / 'data'
@@ -17,11 +17,11 @@ INCLUDE_SUSPECTED_ROUTES_PARTS = [False]
 STRATIFY_TRAIN_TEST_SPLIT = [False]
 RANDOM_STATE = [5]
 NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH = [0]
-METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS = ['mcc', 'f1', 'auprc'] if not DEBUG_MODE else ['mcc']
+METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS = ['mcc', 'f1', 'auprc'] if not DEBUG_MODE else ['f1']
 TEST_SET_SIZE = 0.25
 VALIDATION_SET_SIZE = 0.2  # relevant only in case of neural networks
 NUMBER_OF_DAYS_TO_CONSIDER = [1, 2, 3, 4]
-DOWNSAMPLE_MAJORITY_CLASS = [False, True] if not DEBUG_MODE else [False]
+DOWNSAMPLE_MAJORITY_CLASS = [False, True] if not DEBUG_MODE else [True]
 
 METRIC_NAME_TO_SKLEARN_SCORER = {'mcc': make_scorer(matthews_corrcoef), 'f1': 'f1', 'auprc': 'average_precision'}
 
