@@ -48,6 +48,7 @@ class Config:
     nn_validation_set_size: float = VALIDATION_SET_SIZE
     nn_max_epochs: int = 100
     downsample_majority_class: bool = False
+    max_classes_ratio: int = 4  # Relevant only if downsample_majority_class is True
 
     def to_csv(self, path: Path):
         config_df = pd.DataFrame(list(asdict(self).items()), columns=['key', 'value'])

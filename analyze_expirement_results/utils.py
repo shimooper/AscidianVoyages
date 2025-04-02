@@ -106,7 +106,7 @@ def convert_features_df_to_tensor_for_rnn(X_df):
     return tensor_data
 
 
-def downsample_negative_class(logger, Xs_train, Ys_train, random_state):
+def downsample_negative_class(logger, Xs_train, Ys_train, random_state, max_classes_ratio):
     logger.info(f"Initial class distribution: {Ys_train['label'].value_counts()}. Downsampling negative class...")
 
     # Step 1: Separate positive and negative samples
@@ -118,7 +118,7 @@ def downsample_negative_class(logger, Xs_train, Ys_train, random_state):
 
     # Step 2: Determine max allowed negatives (3x the number of positives)
     num_pos = len(Ys_pos)
-    max_negatives = 3 * num_pos
+    max_negatives = max_classes_ratio * num_pos
 
     # Step 3: Downsample negative class if needed
     if len(Ys_neg) > max_negatives:

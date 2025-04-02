@@ -209,7 +209,7 @@ class ScikitModel(Model):
         train_logger = setup_logger(self.model_train_dir / 'classifiers_train.log', f'MODEL_{self.model_id}_TRAIN')
 
         if self.config.downsample_majority_class:
-            Xs_train, Ys_train = downsample_negative_class(train_logger, Xs_train, Ys_train, self.config.random_state)
+            Xs_train, Ys_train = downsample_negative_class(train_logger, Xs_train, Ys_train, self.config.random_state, self.config.max_classes_ratio)
 
         if self.config.do_feature_selection:
             selected_features_mask = self.feature_selection_on_train_data(train_logger, Xs_train, Ys_train)
@@ -455,12 +455,14 @@ class ScikitModel(Model):
         if not DEBUG_MODE:
             hyperparameter_grid = {
                 'hidden_size': [8, 16, 32],
+                'num_layers': [1, 2],
                 'lr': [1e-4, 1e-3, 1e-2],
                 'batch_size': [16, 32, 64]
             }
         else:
             hyperparameter_grid = {
                 'hidden_size': [8],
+                'num_layers': [1, 2],
                 'lr': [1e-4],
                 'batch_size': [16]
             }
@@ -468,10 +470,11 @@ class ScikitModel(Model):
         all_results = []
 
         # Grid search
-        for hidden_size, lr, batch_size in zip(hyperparameter_grid['hidden_size'], hyperparameter_grid['lr'],
-                                               hyperparameter_grid['batch_size']):
+        for hidden_size, num_layers, lr, batch_size in zip(hyperparameter_grid['hidden_size'],
+                                                           hyperparameter_grid['num_layers'], hyperparameter_grid['lr'],
+                                                           hyperparameter_grid['batch_size']):
             logger.info(f"Training LSTM with hidden_size={hidden_size}, lr={lr}, batch_size={batch_size}")
-            grid_combination_dir = classifier_output_dir / f'hidden_size_{hidden_size}_lr_{lr}_batch_size_{batch_size}'
+            grid_combination_dir = classifier_output_dir / f'hidden_size_{hidden_size}_num_layers_{num_layers}_lr_{lr}_batch_size_{batch_size}'
 
             skf = StratifiedKFold(shuffle=True, random_state=self.config.random_state)
             fold_metrics = []
@@ -487,7 +490,7 @@ class ScikitModel(Model):
                 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
                 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-                model = LSTMModel(hidden_size=hidden_size, lr=lr)
+                model = LSTMModel(hidden_size=hidden_size, num_layers=num_layers, lr=lr)
                 fold_output_dir = grid_combination_dir / f'fold_{fold}'
                 fold_output_dir.mkdir(exist_ok=True, parents=True)
                 checkpoint_callback = ModelCheckpoint(monitor=f'val_{self.config.metric}', mode='max', save_top_k=1,
@@ -552,7 +555,8 @@ class ScikitModel(Model):
         final_dataset = TensorDataset(torch.tensor(Xs_train), torch.tensor(Ys_train).unsqueeze(1))
         final_loader = DataLoader(final_dataset, batch_size=best_hyperparameters['batch_size'], shuffle=True)
 
-        final_model = LSTMModel(hidden_size=best_hyperparameters['hidden_size'], lr=best_hyperparameters['lr'])
+        final_model = LSTMModel(hidden_size=best_hyperparameters['hidden_size'],
+                                num_layers=best_hyperparameters['num_layers'], lr=best_hyperparameters['lr'])
         best_model_dir = classifier_output_dir / 'best_hyperparameters_model'
         best_model_dir.mkdir(exist_ok=True, parents=True)
         checkpoint_callback_final = ModelCheckpoint(monitor=f'train_{self.config.metric}', mode='max', save_top_k=1,
