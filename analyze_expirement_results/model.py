@@ -28,7 +28,7 @@ from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 import optuna
 
 from utils import setup_logger, convert_pascal_to_snake_case, get_column_groups_sorted, convert_columns_to_int, \
-    get_lived_columns_to_consider, merge_dicts_average
+    get_lived_columns_to_consider, merge_dicts_average, convert_features_df_to_tensor_for_rnn, downsample_negative_class
 from configuration import METRIC_NAME_TO_SKLEARN_SCORER, DEBUG_MODE, Config
 from model_lstm import LSTMModel
 
@@ -47,7 +47,9 @@ class Model:
         self.model_train_dir.mkdir(exist_ok=True, parents=True)
         self.model_test_dir.mkdir(exist_ok=True, parents=True)
 
-    def convert_routes_to_model_data(self, df, number_of_days_to_consider):
+        np.random.seed(self.config.random_state)
+
+    def convert_routes_to_model_data(self, df):
         lived_columns, temperature_columns, salinity_columns = get_column_groups_sorted(df)
 
         days_data = []
@@ -57,8 +59,8 @@ class Model:
                 if pd.isna(row[f'Lived {col_day}']):
                     continue
 
-                temperature_columns = {f'Day {-i} Temperature': row[f'Temp {col_day - i}'] for i in range(number_of_days_to_consider)}
-                salinity_columns = {f'Day {-i} Salinity': row[f'Salinity {col_day - i}'] for i in range(number_of_days_to_consider)}
+                temperature_columns = {f'Day -{i} Temperature': row[f'Temp {col_day - i}'] for i in range(self.number_of_days_to_consider)}
+                salinity_columns = {f'Day -{i} Salinity': row[f'Salinity {col_day - i}'] for i in range(self.number_of_days_to_consider)}
                 lived_cols_to_consider = get_lived_columns_to_consider(row, col_day, self.config.number_of_future_days_to_consider_death)
 
                 new_row = {
@@ -74,11 +76,11 @@ class Model:
 
     def create_model_data(self):
         train_df = pd.read_csv(self.config.data_dir_path / 'train.csv')
-        model_train_df = self.convert_routes_to_model_data(train_df, self.number_of_days_to_consider)
+        model_train_df = self.convert_routes_to_model_data(train_df)
         model_train_df.to_csv(self.model_data_dir / 'train.csv', index=False)
 
         test_df = pd.read_csv(self.config.data_dir_path / 'test.csv')
-        model_test_df = self.convert_routes_to_model_data(test_df, self.number_of_days_to_consider)
+        model_test_df = self.convert_routes_to_model_data(test_df)
         model_test_df.to_csv(self.model_data_dir / 'test.csv', index=False)
 
         if not DEBUG_MODE:
@@ -205,6 +207,10 @@ class ScikitModel(Model):
 
         # Train
         train_logger = setup_logger(self.model_train_dir / 'classifiers_train.log', f'MODEL_{self.model_id}_TRAIN')
+
+        if self.config.downsample_majority_class:
+            Xs_train, Ys_train = downsample_negative_class(train_logger, Xs_train, Ys_train, self.config.random_state)
+
         if self.config.do_feature_selection:
             selected_features_mask = self.feature_selection_on_train_data(train_logger, Xs_train, Ys_train)
         else:
@@ -374,7 +380,7 @@ class ScikitModel(Model):
         }
 
         rfc_grid_debug = {
-            'n_estimators': [5, 20],
+            'n_estimators': [5],
             'max_depth': [None],
             'min_samples_split': [2],
             'min_samples_leaf': [1],
@@ -406,7 +412,7 @@ class ScikitModel(Model):
             'min_samples_split': [2],
             'min_samples_leaf': [1],
             'random_state': [self.config.random_state],
-            'class_weight': ['balanced', None],
+            'class_weight': ['balanced'],
         }
 
         xgboost_grid = {
@@ -443,12 +449,21 @@ class ScikitModel(Model):
         seed_everything(self.config.random_state, workers=True)
         classifier_output_dir = self.model_train_dir / 'lstm'
 
+        Xs_train = convert_features_df_to_tensor_for_rnn(Xs_train)
+
         # Hyperparameter grid
-        hyperparameter_grid = {
-            'hidden_size': [8, 16, 32],
-            'lr': [1e-4, 1e-3, 1e-2],
-            'batch_size': [16, 32, 64]
-        }
+        if not DEBUG_MODE:
+            hyperparameter_grid = {
+                'hidden_size': [8, 16, 32],
+                'lr': [1e-4, 1e-3, 1e-2],
+                'batch_size': [16, 32, 64]
+            }
+        else:
+            hyperparameter_grid = {
+                'hidden_size': [8],
+                'lr': [1e-4],
+                'batch_size': [16]
+            }
 
         all_results = []
 
@@ -475,12 +490,12 @@ class ScikitModel(Model):
                 model = LSTMModel(hidden_size=hidden_size, lr=lr)
                 fold_output_dir = grid_combination_dir / f'fold_{fold}'
                 fold_output_dir.mkdir(exist_ok=True, parents=True)
-                checkpoint_callback = ModelCheckpoint(monitor='val_loss', mode='min', save_top_k=1,
-                                                      dirpath=fold_output_dir / 'checkpoints')
+                checkpoint_callback = ModelCheckpoint(monitor=f'val_{self.config.metric}', mode='max', save_top_k=1,
+                                                      dirpath=fold_output_dir / 'checkpoints', filename='best_model')
                 trainer = Trainer(
                     max_epochs=self.config.nn_max_epochs,
                     logger=False,
-                    callbacks=[EarlyStopping(monitor='val_loss', patience=3, mode='min'), checkpoint_callback],
+                    callbacks=[EarlyStopping(monitor=f'val_loss', patience=3, mode='min'), checkpoint_callback],
                     deterministic=True
                 )
                 trainer.fit(model, train_loader, val_loader)
@@ -540,12 +555,12 @@ class ScikitModel(Model):
         final_model = LSTMModel(hidden_size=best_hyperparameters['hidden_size'], lr=best_hyperparameters['lr'])
         best_model_dir = classifier_output_dir / 'best_hyperparameters_model'
         best_model_dir.mkdir(exist_ok=True, parents=True)
-        checkpoint_callback_final = ModelCheckpoint(monitor='val_loss', mode='min', save_top_k=1,
-                                                    dirpath=best_model_dir / 'checkpoints')
+        checkpoint_callback_final = ModelCheckpoint(monitor=f'train_{self.config.metric}', mode='max', save_top_k=1,
+                                                    dirpath=best_model_dir / 'checkpoints', filename='best_model')
         final_trainer = Trainer(
             max_epochs=self.config.nn_max_epochs,
             logger=False,
-            callbacks=[EarlyStopping(monitor='val_loss', patience=3, mode='min'), checkpoint_callback_final],
+            callbacks=[EarlyStopping(monitor=f'train_loss', patience=3, mode='min'), checkpoint_callback_final],
             deterministic=True
         )
         final_trainer.fit(final_model, final_loader)

@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed, ProcessPoolExec
 
 from configuration import SCRIPT_DIR, STRATIFY_TRAIN_TEST_SPLIT, RANDOM_STATE, METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS, \
     INCLUDE_SUSPECTED_ROUTES_PARTS, INCLUDE_CONTROL_ROUTES, NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH, Config, str_to_bool, \
-    DEFAULT_OPTUNA_NUMBER_OF_TRIALS, DEBUG_MODE
+    DEFAULT_OPTUNA_NUMBER_OF_TRIALS, DEBUG_MODE, DOWNSAMPLE_MAJORITY_CLASS
 from preprocess import permanent_preprocess_data, preprocess_data_by_config
 from routes_visualization import plot_timelines
 from model import ScikitModel, OptunaModel
@@ -28,7 +28,7 @@ def run_analysis_of_one_config(config: Config, processed_df):
         model_instance.run_analysis()
         model_id += 1
 
-    aggregate_test_metrics_of_one_configuration(config)
+    # aggregate_test_metrics_of_one_configuration(config)
 
 
 def main(outputs_dir, cpus, do_feature_selection, train_with_optuna, optuna_number_of_trials):
@@ -44,9 +44,9 @@ def main(outputs_dir, cpus, do_feature_selection, train_with_optuna, optuna_numb
 
         flag_combinations = list(itertools.product(
             INCLUDE_CONTROL_ROUTES, INCLUDE_SUSPECTED_ROUTES_PARTS, NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH,
-            STRATIFY_TRAIN_TEST_SPLIT, RANDOM_STATE, METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS))
+            STRATIFY_TRAIN_TEST_SPLIT, RANDOM_STATE, METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS, DOWNSAMPLE_MAJORITY_CLASS))
         configuration_id = 0
-        for include_control_flag, include_suspected_flag, number_of_future_days, stratify_flag, random_state, metric in flag_combinations:
+        for include_control_flag, include_suspected_flag, number_of_future_days, stratify_flag, random_state, metric, downsample in flag_combinations:
             outputs_dir_path = outputs_dir / f'configuration_{configuration_id}'
             outputs_dir_path.mkdir(exist_ok=True, parents=True)
             config = Config(
@@ -63,7 +63,8 @@ def main(outputs_dir, cpus, do_feature_selection, train_with_optuna, optuna_numb
                 models_dir_path=outputs_dir_path / 'models',
                 do_feature_selection=do_feature_selection,
                 train_with_optuna=train_with_optuna,
-                optuna_number_of_trials=optuna_number_of_trials
+                optuna_number_of_trials=optuna_number_of_trials,
+                downsample_majority_class=downsample
             )
             config.to_csv(outputs_dir_path / 'config.csv')
 
@@ -73,7 +74,7 @@ def main(outputs_dir, cpus, do_feature_selection, train_with_optuna, optuna_numb
         for future in as_completed(futures):
             future.result()
 
-    aggregate_all_configuration_results(outputs_dir)
+    # aggregate_all_configuration_results(outputs_dir)
 
 
 def aggregate_test_metrics_of_one_configuration(config: Config):

@@ -1,15 +1,10 @@
 import numpy as np
+from sklearn.metrics import matthews_corrcoef, average_precision_score, f1_score
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import pytorch_lightning as pl
-
-# Simulating data (Replace with actual data)
-num_samples = 1000  # Example dataset size
-X = np.random.rand(num_samples, 4, 2).astype(np.float32)  # Shape: (samples, time steps, features)
-y = np.random.randint(0, 2, size=(num_samples,)).astype(np.float32)  # Binary outcome
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 # Define LSTM model using PyTorch Lightning
@@ -35,8 +30,37 @@ class LSTMModel(pl.LightningModule):
         x, y = batch
         y_hat = self(x)
         loss = self.criterion(y_hat, y)
-        self.log('val_loss', loss, prog_bar=True, on_epoch=True)
+        self.log('train_loss', loss, prog_bar=True, on_epoch=True)
+
+        y_true = y.detach().cpu().numpy().flatten()
+        y_pred = (y_hat > 0.5).astype(int)
+
+        train_mcc = matthews_corrcoef(y_true, y_pred)
+        train_f1 = f1_score(y_true, y_pred)
+        train_auprc = average_precision_score(y_true, y_hat)
+
+        self.log('train_mcc', train_mcc, prog_bar=True, on_epoch=True)  # Log MCC
+        self.log('train_f1', train_f1, prog_bar=True, on_epoch=True)
+        self.log('train_auprc', train_auprc, prog_bar=True, on_epoch=True)
+
         return loss
+
+    def validation_step(self, batch, batch_idx):
+        x, y = batch
+        y_hat = self(x).detach().cpu().numpy().flatten()
+        loss = self.criterion(y_hat, y)
+        self.log('val_loss', loss, prog_bar=True, on_epoch=True)
+
+        y_true = y.detach().cpu().numpy().flatten()
+        y_pred = (y_hat > 0.5).astype(int)
+
+        val_mcc = matthews_corrcoef(y_true, y_pred)
+        val_f1 = f1_score(y_true, y_pred)
+        val_auprc = average_precision_score(y_true, y_hat)
+
+        self.log('val_mcc', val_mcc, prog_bar=True, on_epoch=True)  # Log MCC
+        self.log('val_f1', val_f1, prog_bar=True, on_epoch=True)
+        self.log('val_auprc', val_auprc, prog_bar=True, on_epoch=True)
 
     def configure_optimizers(self):
         return optim.Adam(self.parameters(), lr=self.lr)
@@ -45,18 +69,18 @@ class LSTMModel(pl.LightningModule):
 
 
 
-# Load model and run inference
-def load_model_and_predict(X_test):
-    model = LSTMModel(hidden_size=best_params['hidden_size'], lr=best_params['lr']).to(device)
-    model.load_state_dict(torch.load('final_lstm_model.pth'))
-    model.eval()
-    X_test_tensor = torch.tensor(X_test).to(device)
-    with torch.no_grad():
-        predictions = (model(X_test_tensor) > 0.5).cpu().numpy().astype(int).flatten()
-    return predictions
-
-
-# Example usage
-X_test = np.random.rand(10, 4, 2).astype(np.float32)  # Replace with real test data
-predictions = load_model_and_predict(X_test)
-print("Predictions:", predictions)
+# # Load model and run inference
+# def load_model_and_predict(X_test):
+#     model = LSTMModel(hidden_size=best_params['hidden_size'], lr=best_params['lr']).to(device)
+#     model.load_state_dict(torch.load('final_lstm_model.pth'))
+#     model.eval()
+#     X_test_tensor = torch.tensor(X_test).to(device)
+#     with torch.no_grad():
+#         predictions = (model(X_test_tensor) > 0.5).cpu().numpy().astype(int).flatten()
+#     return predictions
+#
+#
+# # Example usage
+# X_test = np.random.rand(10, 4, 2).astype(np.float32)  # Replace with real test data
+# predictions = load_model_and_predict(X_test)
+# print("Predictions:", predictions)
