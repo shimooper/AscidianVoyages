@@ -63,10 +63,15 @@ def preprocess_data_by_config(config: Config, routes_df):
     else:
         stratify_column = None
 
-    train_ship_names_df, test_ship_names_df = train_test_split(ship_names_and_seasons_no_control, test_size=config.test_set_size,
-                                                               random_state=config.random_state, stratify=stratify_column)
-    train_df = routes_df[routes_df['Name'].isin(list(train_ship_names_df['Name']) + ['CONTROL'])]
-    test_df = routes_df[routes_df['Name'].isin(test_ship_names_df['Name'])]
+    train_ship_names_seasons_df, test_ship_names_seasons_df = train_test_split(
+        ship_names_and_seasons_no_control, test_size=config.test_set_size, random_state=config.random_state, stratify=stratify_column)
+
+    # Add CONTROL routes to the train set
+    control_names_seasons = pd.DataFrame({'Name': ['CONTROL', 'CONTROL'], 'Season': ['winter', 'summer']})
+    train_ship_names_seasons_df = pd.concat([train_ship_names_seasons_df, control_names_seasons], ignore_index=True)
+
+    train_df = routes_df.merge(train_ship_names_seasons_df, on=['Name', 'Season'], how='inner')
+    test_df = routes_df.merge(test_ship_names_seasons_df, on=['Name', 'Season'], how='inner')
 
     train_df.to_csv(config.data_dir_path / 'train.csv', index=False)
     test_df.to_csv(config.data_dir_path / 'test.csv', index=False)

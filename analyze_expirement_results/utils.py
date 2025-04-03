@@ -16,6 +16,8 @@ METRICS_NAME_TO_AVERAGE_METRIC_NAME = {
     'train_f1': 'mean_train_f1',
 }
 
+DAYS_DESCRIPTIONS = {0: "Current Day", 1: "1 Day Ago", 2: "2 Days Ago", 3: "3 Days Ago"}
+
 
 def variable_equals_value(variable, value):
     if pd.isna(value):
@@ -107,10 +109,10 @@ def convert_features_df_to_tensor_for_rnn(X_df):
 
 
 def downsample_negative_class(logger, Xs_train, Ys_train, random_state, max_classes_ratio):
-    logger.info(f"Initial class distribution: {Ys_train['label'].value_counts()}. Downsampling negative class...")
+    logger.info(f"Initial class distribution: {Ys_train.value_counts()}. Downsampling negative class...")
 
     # Step 1: Separate positive and negative samples
-    positive_mask = Ys_train['label'] == 1
+    positive_mask = Ys_train == 1
     negative_mask = ~positive_mask
 
     Xs_pos, Ys_pos = Xs_train[positive_mask], Ys_train[positive_mask]
@@ -139,6 +141,6 @@ def downsample_negative_class(logger, Xs_train, Ys_train, random_state, max_clas
     Xs_balanced = balanced_df.drop(columns=['death'])
 
     # Print final class distribution
-    logger.info(f"Final class distribution: {Ys_balanced['label'].value_counts()}")
+    logger.info(f"Final class distribution: {Ys_balanced.value_counts()}")
 
     return Xs_balanced, Ys_balanced

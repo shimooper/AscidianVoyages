@@ -27,7 +27,8 @@ from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 import optuna
 
 from utils import setup_logger, convert_pascal_to_snake_case, get_column_groups_sorted, convert_columns_to_int, \
-    get_lived_columns_to_consider, merge_dicts_average, convert_features_df_to_tensor_for_rnn, downsample_negative_class
+    get_lived_columns_to_consider, merge_dicts_average, convert_features_df_to_tensor_for_rnn, downsample_negative_class, \
+    DAYS_DESCRIPTIONS
 from configuration import METRIC_NAME_TO_SKLEARN_SCORER, DEBUG_MODE, Config
 from model_lstm import LSTMModel
 
@@ -58,8 +59,8 @@ class Model:
                 if pd.isna(row[f'Lived {col_day}']):
                     continue
 
-                temperature_columns = {f'Day -{i} Temperature': row[f'Temp {col_day - i}'] for i in range(self.number_of_days_to_consider)}
-                salinity_columns = {f'Day -{i} Salinity': row[f'Salinity {col_day - i}'] for i in range(self.number_of_days_to_consider)}
+                temperature_columns = {f'{DAYS_DESCRIPTIONS[i]} Temperature': row[f'Temp {col_day - i}'] for i in range(self.number_of_days_to_consider)}
+                salinity_columns = {f'{DAYS_DESCRIPTIONS[i]} Salinity': row[f'Salinity {col_day - i}'] for i in range(self.number_of_days_to_consider)}
                 lived_cols_to_consider = get_lived_columns_to_consider(row, col_day, self.config.number_of_future_days_to_consider_death)
 
                 new_row = {
@@ -384,7 +385,7 @@ class ScikitModel(Model):
             'min_samples_split': [2],
             'min_samples_leaf': [1],
             'random_state': [self.config.random_state],
-            'class_weight': ['balanced', None],
+            'class_weight': ['balanced'],
             'bootstrap': [True]
         }
 
@@ -403,7 +404,7 @@ class ScikitModel(Model):
             'min_samples_split': [2, 5, 10],
             'min_samples_leaf': [1, 2, 5],
             'random_state': [self.config.random_state],
-            'class_weight': ['balanced', None],
+            'class_weight': ['balanced'],
         }
 
         decision_tree_grid_debug = {
