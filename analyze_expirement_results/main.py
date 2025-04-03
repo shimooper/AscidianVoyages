@@ -140,7 +140,7 @@ if __name__ == "__main__":
     parser.add_argument('--outputs_dir_name', type=str, default='outputs', help='outputs dir name')
     parser.add_argument('--cpus', type=int, default=8, help='Number of CPUs to use')
     parser.add_argument('--do_feature_selection', type=str_to_bool, default=False)
-    parser.add_argument('--train_with_optuna', type=str_to_bool, default=True)
+    parser.add_argument('--train_with_optuna', type=str_to_bool, default=False)
     parser.add_argument('--optuna_number_of_trials', type=int, default=DEFAULT_OPTUNA_NUMBER_OF_TRIALS)
 
     args = parser.parse_args()

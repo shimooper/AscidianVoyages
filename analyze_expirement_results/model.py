@@ -21,9 +21,8 @@ from sklearn.model_selection import train_test_split
 
 import torch
 from torch.utils.data import DataLoader, TensorDataset
-from lightning.pytorch import Trainer, seed_everything
+import lightning as L
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
-
 
 import optuna
 
@@ -446,7 +445,7 @@ class ScikitModel(Model):
         ]
 
     def train_lstm(self, logger, Xs_train, Ys_train, best_classifiers_metrics):
-        seed_everything(self.config.random_state, workers=True)
+        L.seed_everything(self.config.random_state, workers=True)
         classifier_output_dir = self.model_train_dir / 'lstm'
 
         Xs_train = convert_features_df_to_tensor_for_rnn(Xs_train)
@@ -495,7 +494,7 @@ class ScikitModel(Model):
                 fold_output_dir.mkdir(exist_ok=True, parents=True)
                 checkpoint_callback = ModelCheckpoint(monitor=f'val_{self.config.metric}', mode='max', save_top_k=1,
                                                       dirpath=fold_output_dir / 'checkpoints', filename='best_model')
-                trainer = Trainer(
+                trainer = L.Trainer(
                     max_epochs=self.config.nn_max_epochs,
                     logger=False,
                     callbacks=[EarlyStopping(monitor=f'val_loss', patience=3, mode='min'), checkpoint_callback],
@@ -561,7 +560,7 @@ class ScikitModel(Model):
         best_model_dir.mkdir(exist_ok=True, parents=True)
         checkpoint_callback_final = ModelCheckpoint(monitor=f'train_{self.config.metric}', mode='max', save_top_k=1,
                                                     dirpath=best_model_dir / 'checkpoints', filename='best_model')
-        final_trainer = Trainer(
+        final_trainer = L.Trainer(
             max_epochs=self.config.nn_max_epochs,
             logger=False,
             callbacks=[EarlyStopping(monitor=f'train_loss', patience=3, mode='min'), checkpoint_callback_final],

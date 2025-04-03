@@ -4,11 +4,11 @@ from sklearn.metrics import matthews_corrcoef, average_precision_score, f1_score
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import pytorch_lightning as pl
+import lightning as L
 
 
 # Define LSTM model using PyTorch Lightning
-class LSTMModel(pl.LightningModule):
+class LSTMModel(L.LightningModule):
     def __init__(self, hidden_size=16, num_layers=1, lr=0.001):
         super(LSTMModel, self).__init__()
         self.lstm = nn.LSTM(input_size=2, hidden_size=hidden_size, num_layers=num_layers, batch_first=True)

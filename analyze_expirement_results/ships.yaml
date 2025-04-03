@@ -3,12 +3,13 @@ channels:
   - conda-forge
   - bioconda
 dependencies:
-  - python=3.9
+  - python=3.10
   - jupyterlab
   - pandas
   - numpy
   - seaborn
-  - scikit-learn=1.5.1
-  - openpyxl=3.1.5
-  - optuna=4.2.1
-  - pytorch-lightning=2.5.1
+  - scikit-learn
+  - openpyxl
+  - optuna
+  - lightning
+  - xgboost
