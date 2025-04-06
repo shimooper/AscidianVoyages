@@ -28,35 +28,23 @@ class LSTMModel(L.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, y = batch
-        y_hat = self(x)
-        loss = self.criterion(y_hat, y)
+        y_hat = self(x).flatten()
+        loss = self.criterion(y_hat, y.float())
         self.log('train_loss', loss, prog_bar=True, on_epoch=True)
-
-        y_true = y.detach().cpu().numpy().flatten()
-        y_pred = (y_hat > 0.5).astype(int)
-
-        train_mcc = matthews_corrcoef(y_true, y_pred)
-        train_f1 = f1_score(y_true, y_pred)
-        train_auprc = average_precision_score(y_true, y_hat)
-
-        self.log('train_mcc', train_mcc, prog_bar=True, on_epoch=True)  # Log MCC
-        self.log('train_f1', train_f1, prog_bar=True, on_epoch=True)
-        self.log('train_auprc', train_auprc, prog_bar=True, on_epoch=True)
 
         return loss
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
-        y_hat = self(x).detach().cpu().numpy().flatten()
-        loss = self.criterion(y_hat, y)
+        y_hat = self(x).detach().cpu().flatten()
+        loss = self.criterion(y_hat, y.float())
         self.log('val_loss', loss, prog_bar=True, on_epoch=True)
 
-        y_true = y.detach().cpu().numpy().flatten()
-        y_pred = (y_hat > 0.5).astype(int)
+        y_pred = (y_hat > 0.5).numpy().astype(int)
 
-        val_mcc = matthews_corrcoef(y_true, y_pred)
-        val_f1 = f1_score(y_true, y_pred)
-        val_auprc = average_precision_score(y_true, y_hat)
+        val_mcc = matthews_corrcoef(y, y_pred)
+        val_f1 = f1_score(y, y_pred)
+        val_auprc = average_precision_score(y, y_hat)
 
         self.log('val_mcc', val_mcc, prog_bar=True, on_epoch=True)  # Log MCC
         self.log('val_f1', val_f1, prog_bar=True, on_epoch=True)

@@ -6,10 +6,10 @@ dependencies:
   - python=3.10
   - jupyterlab
   - pandas
-  - numpy
+  - numpy=1.26
   - seaborn
   - scikit-learn
   - openpyxl
   - optuna
-  - lightning
+  - lightning=2.5.1
   - xgboost

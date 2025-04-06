@@ -94,11 +94,11 @@ def convert_features_df_to_tensor_for_rnn(X_df):
     # Reshape DataFrame into (n_samples, number_of_days, 2)
 
     n_samples = X_df.shape[0]
-    number_of_days = len(X_df.columns)
+    number_of_days = int(len(X_df.columns) / 2)
 
     # Extract temperature and salinity values
-    temperature = X_df[[f"Day {i} Temperature" for i in range(0, -number_of_days, -1)]].values  # Shape (n_samples, number_of_days)
-    salinity = X_df[[f"Day {i} Salinity" for i in range(0, -number_of_days, -1)]].values  # Shape (n_samples, number_of_days)
+    temperature = X_df[[f"{DAYS_DESCRIPTIONS[i]} Temperature" for i in range(number_of_days)]].values  # Shape (n_samples, number_of_days)
+    salinity = X_df[[f"{DAYS_DESCRIPTIONS[i]} Salinity" for i in range(number_of_days)]].values  # Shape (n_samples, number_of_days)
 
     # Stack them to get (n_samples, number_of_days, 2)
     tensor_data = np.stack([temperature, salinity], axis=-1)  # Shape (n_samples, number_of_days, 2)

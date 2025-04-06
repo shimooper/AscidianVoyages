@@ -408,7 +408,7 @@ class ScikitModel(Model):
         }
 
         decision_tree_grid_debug = {
-            'max_depth': [None, 5],
+            'max_depth': [5],
             'min_samples_split': [2],
             'min_samples_leaf': [1],
             'random_state': [self.config.random_state],
@@ -417,7 +417,7 @@ class ScikitModel(Model):
 
         xgboost_grid = {
             'learning_rate': [0.01, 0.05, 0.1],
-            'n_estimators': [10, 50, 200],
+            'n_estimators': [10, 50, 100],
             'max_depth': [3, 5, 10],
             'booster': ['dart'],
             'n_jobs': [1],
@@ -462,7 +462,7 @@ class ScikitModel(Model):
         else:
             hyperparameter_grid = {
                 'hidden_size': [8],
-                'num_layers': [1, 2],
+                'num_layers': [1],
                 'lr': [1e-4],
                 'batch_size': [16]
             }
@@ -473,7 +473,7 @@ class ScikitModel(Model):
         for hidden_size, num_layers, lr, batch_size in zip(hyperparameter_grid['hidden_size'],
                                                            hyperparameter_grid['num_layers'], hyperparameter_grid['lr'],
                                                            hyperparameter_grid['batch_size']):
-            logger.info(f"Training LSTM with hidden_size={hidden_size}, lr={lr}, batch_size={batch_size}")
+            logger.info(f"Training LSTM with hidden_size={hidden_size}, num_layers={num_layers}, lr={lr}, batch_size={batch_size}")
             grid_combination_dir = classifier_output_dir / f'hidden_size_{hidden_size}_num_layers_{num_layers}_lr_{lr}_batch_size_{batch_size}'
 
             skf = StratifiedKFold(shuffle=True, random_state=self.config.random_state)
@@ -481,14 +481,14 @@ class ScikitModel(Model):
             for fold, (train_idx, val_idx) in enumerate(skf.split(Xs_train, Ys_train)):
                 logger.info(f'Training fold {fold + 1}/5')
 
-                X_train, X_val = Xs_train[train_idx], Xs_train[val_idx]
-                y_train, y_val = Ys_train[train_idx], Ys_train[val_idx]
+                X_train, X_val = Xs_train[train_idx].clone(), Xs_train[val_idx].clone()
+                y_train, y_val = Ys_train.iloc[train_idx], Ys_train.iloc[val_idx]
 
-                train_dataset = TensorDataset(torch.tensor(X_train), torch.tensor(y_train).unsqueeze(1))
-                val_dataset = TensorDataset(torch.tensor(X_val), torch.tensor(y_val).unsqueeze(1))
+                train_dataset = TensorDataset(X_train, torch.tensor(y_train.values))
+                val_dataset = TensorDataset(X_val, torch.tensor(y_val.values))
 
                 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-                val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+                val_loader = DataLoader(val_dataset, batch_size=len(val_dataset), shuffle=False)
 
                 model = LSTMModel(hidden_size=hidden_size, num_layers=num_layers, lr=lr)
                 fold_output_dir = grid_combination_dir / f'fold_{fold}'
@@ -504,13 +504,13 @@ class ScikitModel(Model):
                 trainer.fit(model, train_loader, val_loader)
 
                 best_model_path = checkpoint_callback.best_model_path
-                model.load_state_dict(torch.load(best_model_path))
-                model.eval()
+                best_model = LSTMModel.load_from_checkpoint(best_model_path)
+                best_model.eval()
 
                 with torch.no_grad():
-                    y_train_pred_probs = torch.cat([model(x) for x, _ in train_loader]).cpu().numpy().flatten()
+                    y_train_pred_probs = torch.cat([best_model(x) for x, _ in train_loader]).cpu().numpy().flatten()
                     y_train_pred = (y_train_pred_probs > 0.5).astype(int)
-                    y_val_pred_probs = torch.cat([model(x) for x, _ in val_loader]).cpu().numpy().flatten()
+                    y_val_pred_probs = torch.cat([best_model(x) for x, _ in val_loader]).cpu().numpy().flatten()
                     y_val_pred = (y_val_pred_probs > 0.5).astype(int)
 
                 train_mcc = matthews_corrcoef(y_train, y_train_pred)
@@ -527,7 +527,7 @@ class ScikitModel(Model):
                             f"Val MCC: {val_mcc}, Val F1: {val_f1}, Val AUPRC: {val_auprc}")
 
             grid_combination_results = merge_dicts_average(fold_metrics)
-            all_results.append({'hidden_size': hidden_size, 'lr': lr, 'batch_size': batch_size, **grid_combination_results})
+            all_results.append({'hidden_size': hidden_size, 'num_layers': num_layers, 'lr': lr, 'batch_size': batch_size, **grid_combination_results})
 
         # Save all hyperparameter results to CSV
         results_df = pd.DataFrame(all_results)
@@ -537,7 +537,7 @@ class ScikitModel(Model):
         # Find the best hyperparameters
         best_hyperparameters = results_df.loc[results_df[f'mean_test_{self.config.metric}'].idxmax()]
 
-        logger.info(f"Best params: {best_hyperparameters[['hidden_size', 'lr', 'batch_size']]}")
+        logger.info(f"Best params: {best_hyperparameters[['hidden_size', 'num_layers', 'lr', 'batch_size']]}")
         logger.info(
             f"Best estimator - Mean MCC on train folds: {best_hyperparameters['mean_train_mcc']}, "
             f"Mean AUPRC on train folds: {best_hyperparameters['mean_train_auprc']}, "
@@ -552,7 +552,7 @@ class ScikitModel(Model):
                                             best_hyperparameters['mean_test_f1']]
 
         # Retrain on the full dataset with the best hyperparameters
-        final_dataset = TensorDataset(torch.tensor(Xs_train), torch.tensor(Ys_train).unsqueeze(1))
+        final_dataset = TensorDataset(Xs_train.clone(), torch.tensor(Ys_train.values))
         final_loader = DataLoader(final_dataset, batch_size=best_hyperparameters['batch_size'], shuffle=True)
 
         final_model = LSTMModel(hidden_size=best_hyperparameters['hidden_size'],
