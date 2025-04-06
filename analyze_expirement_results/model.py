@@ -305,7 +305,7 @@ class ScikitModel(Model):
             except Exception as e:
                 logger.error(f"Failed to train classifier {class_name} with error: {e}")
 
-        self.train_lstm(logger, Xs_train, Ys_train, best_classifiers_metrics)
+        best_lstm_model_path = self.train_lstm(logger, Xs_train, Ys_train, best_classifiers_metrics)
 
         best_classifier_dir = self.model_train_dir / 'best_classifier'
         best_classifier_dir.mkdir(exist_ok=True, parents=True)
@@ -469,65 +469,61 @@ class ScikitModel(Model):
 
         all_results = []
 
+        X_train, X_val, y_train, y_val = train_test_split(Xs_train, Ys_train,
+                                                          test_size=self.config.nn_validation_set_size,
+                                                          random_state=self.config.random_state)
+
         # Grid search
         for hidden_size, num_layers, lr, batch_size in zip(hyperparameter_grid['hidden_size'],
                                                            hyperparameter_grid['num_layers'], hyperparameter_grid['lr'],
                                                            hyperparameter_grid['batch_size']):
             logger.info(f"Training LSTM with hidden_size={hidden_size}, num_layers={num_layers}, lr={lr}, batch_size={batch_size}")
             grid_combination_dir = classifier_output_dir / f'hidden_size_{hidden_size}_num_layers_{num_layers}_lr_{lr}_batch_size_{batch_size}'
+            grid_combination_dir.mkdir(exist_ok=True, parents=True)
 
-            skf = StratifiedKFold(shuffle=True, random_state=self.config.random_state)
-            fold_metrics = []
-            for fold, (train_idx, val_idx) in enumerate(skf.split(Xs_train, Ys_train)):
-                logger.info(f'Training fold {fold + 1}/5')
+            train_dataset = TensorDataset(X_train, torch.tensor(y_train.values))
+            val_dataset = TensorDataset(X_val, torch.tensor(y_val.values))
 
-                X_train, X_val = Xs_train[train_idx].clone(), Xs_train[val_idx].clone()
-                y_train, y_val = Ys_train.iloc[train_idx], Ys_train.iloc[val_idx]
+            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+            val_loader = DataLoader(val_dataset, batch_size=len(val_dataset), shuffle=False)
 
-                train_dataset = TensorDataset(X_train, torch.tensor(y_train.values))
-                val_dataset = TensorDataset(X_val, torch.tensor(y_val.values))
+            model = LSTMModel(hidden_size=hidden_size, num_layers=num_layers, lr=lr)
 
-                train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-                val_loader = DataLoader(val_dataset, batch_size=len(val_dataset), shuffle=False)
+            checkpoint_callback = ModelCheckpoint(monitor=f'val_{self.config.metric}', mode='max', save_top_k=1,
+                                                  dirpath=grid_combination_dir / 'checkpoints', filename='best_model')
+            trainer = L.Trainer(
+                max_epochs=self.config.nn_max_epochs,
+                logger=False,
+                callbacks=[EarlyStopping(monitor=f'val_loss', patience=3, mode='min'), checkpoint_callback],
+                deterministic=True
+            )
+            trainer.fit(model, train_loader, val_loader)
 
-                model = LSTMModel(hidden_size=hidden_size, num_layers=num_layers, lr=lr)
-                fold_output_dir = grid_combination_dir / f'fold_{fold}'
-                fold_output_dir.mkdir(exist_ok=True, parents=True)
-                checkpoint_callback = ModelCheckpoint(monitor=f'val_{self.config.metric}', mode='max', save_top_k=1,
-                                                      dirpath=fold_output_dir / 'checkpoints', filename='best_model')
-                trainer = L.Trainer(
-                    max_epochs=self.config.nn_max_epochs,
-                    logger=False,
-                    callbacks=[EarlyStopping(monitor=f'val_loss', patience=3, mode='min'), checkpoint_callback],
-                    deterministic=True
-                )
-                trainer.fit(model, train_loader, val_loader)
+            best_model_path = checkpoint_callback.best_model_path
+            best_model = LSTMModel.load_from_checkpoint(best_model_path)
+            best_model.eval()
 
-                best_model_path = checkpoint_callback.best_model_path
-                best_model = LSTMModel.load_from_checkpoint(best_model_path)
-                best_model.eval()
+            with torch.no_grad():
+                y_train_pred_probs = torch.cat([best_model(x) for x, _ in train_loader]).cpu().numpy().flatten()
+                y_train_pred = (y_train_pred_probs > 0.5).astype(int)
+                y_val_pred_probs = torch.cat([best_model(x) for x, _ in val_loader]).cpu().numpy().flatten()
+                y_val_pred = (y_val_pred_probs > 0.5).astype(int)
 
-                with torch.no_grad():
-                    y_train_pred_probs = torch.cat([best_model(x) for x, _ in train_loader]).cpu().numpy().flatten()
-                    y_train_pred = (y_train_pred_probs > 0.5).astype(int)
-                    y_val_pred_probs = torch.cat([best_model(x) for x, _ in val_loader]).cpu().numpy().flatten()
-                    y_val_pred = (y_val_pred_probs > 0.5).astype(int)
+            train_mcc = matthews_corrcoef(y_train, y_train_pred)
+            train_f1 = f1_score(y_train, y_train_pred)
+            train_auprc = average_precision_score(y_train, y_train_pred_probs)
+            val_mcc = matthews_corrcoef(y_val, y_val_pred)
+            val_f1 = f1_score(y_val, y_val_pred)
+            val_auprc = average_precision_score(y_val, y_val_pred_probs)
 
-                train_mcc = matthews_corrcoef(y_train, y_train_pred)
-                train_f1 = f1_score(y_train, y_train_pred)
-                train_auprc = average_precision_score(y_train, y_train_pred_probs)
-                val_mcc = matthews_corrcoef(y_val, y_val_pred)
-                val_f1 = f1_score(y_val, y_val_pred)
-                val_auprc = average_precision_score(y_val, y_val_pred_probs)
+            logger.info(f"Train MCC: {train_mcc}, Train F1: {train_f1}, Train AUPRC: {train_auprc}, "
+                        f"Val MCC: {val_mcc}, Val F1: {val_f1}, Val AUPRC: {val_auprc}")
 
-                fold_metrics.append(
-                    {'val_mcc': val_mcc, 'val_f1': val_f1, 'val_auprc': val_auprc,
-                     'train_mcc': train_mcc, 'train_f1': train_f1, 'train_auprc': train_auprc})
-                logger.info(f"Fold {fold + 1}/5 - Train MCC: {train_mcc}, Train F1: {train_f1}, Train AUPRC: {train_auprc}, "
-                            f"Val MCC: {val_mcc}, Val F1: {val_f1}, Val AUPRC: {val_auprc}")
-
-            grid_combination_results = merge_dicts_average(fold_metrics)
-            all_results.append({'hidden_size': hidden_size, 'num_layers': num_layers, 'lr': lr, 'batch_size': batch_size, **grid_combination_results})
+            # The keys of the metrics are like this to match the ones outputted from GridSearchCV
+            all_results.append({'hidden_size': hidden_size, 'num_layers': num_layers, 'lr': lr, 'batch_size': batch_size,
+                                'mean_test_mcc': val_mcc, 'mean_test_f1': val_f1, 'mean_test_auprc': val_auprc,
+                                'mean_train_mcc': train_mcc, 'mean_train_f1': train_f1, 'mean_train_auprc': train_auprc,
+                                'best_model_path': grid_combination_dir / 'checkpoints' / 'best_model.ckpt'})
 
         # Save all hyperparameter results to CSV
         results_df = pd.DataFrame(all_results)
@@ -535,39 +531,25 @@ class ScikitModel(Model):
         logger.info(f"Hyperparameter search results saved to {classifier_output_dir / 'hyperparameter_results.csv'}")
 
         # Find the best hyperparameters
-        best_hyperparameters = results_df.loc[results_df[f'mean_test_{self.config.metric}'].idxmax()]
+        best_model_index = results_df[f'mean_test_{self.config.metric}'].idxmax()
+        best_model = results_df.loc[best_model_index]
 
-        logger.info(f"Best params: {best_hyperparameters[['hidden_size', 'num_layers', 'lr', 'batch_size']]}")
+        logger.info(f"Best params: {best_model[['hidden_size', 'num_layers', 'lr', 'batch_size']]}")
         logger.info(
-            f"Best estimator - Mean MCC on train folds: {best_hyperparameters['mean_train_mcc']}, "
-            f"Mean AUPRC on train folds: {best_hyperparameters['mean_train_auprc']}, "
-            f"Mean F1 on train fold: {best_hyperparameters['mean_train_f1']}, "
-            f"Mean MCC on held-out folds: {best_hyperparameters['mean_test_mcc']}, "
-            f"Mean AUPRC on held-out folds: {best_hyperparameters['mean_test_auprc']}, "
-            f"Mean F1 o held-out folds: {best_hyperparameters['mean_test_f1']}")
+            f"Best estimator - Mean MCC on train folds: {best_model['mean_train_mcc']}, "
+            f"Mean AUPRC on train folds: {best_model['mean_train_auprc']}, "
+            f"Mean F1 on train fold: {best_model['mean_train_f1']}, "
+            f"Mean MCC on held-out folds: {best_model['mean_test_mcc']}, "
+            f"Mean AUPRC on held-out folds: {best_model['mean_test_auprc']}, "
+            f"Mean F1 o held-out folds: {best_model['mean_test_f1']}")
 
-        best_classifiers_metrics['lstm'] = [results_df[f'mean_test_{self.config.metric}'].idxmax(), best_hyperparameters['mean_train_mcc'],
-                                            best_hyperparameters['mean_train_auprc'], best_hyperparameters['mean_train_f1'],
-                                            best_hyperparameters['mean_test_mcc'], best_hyperparameters['mean_test_auprc'],
-                                            best_hyperparameters['mean_test_f1']]
+        best_classifiers_metrics['lstm'] = [best_model_index, best_model['mean_train_mcc'],
+                                            best_model['mean_train_auprc'], best_model['mean_train_f1'],
+                                            best_model['mean_test_mcc'], best_model['mean_test_auprc'],
+                                            best_model['mean_test_f1']]
 
-        # Retrain on the full dataset with the best hyperparameters
-        final_dataset = TensorDataset(Xs_train.clone(), torch.tensor(Ys_train.values))
-        final_loader = DataLoader(final_dataset, batch_size=best_hyperparameters['batch_size'], shuffle=True)
+        return best_model['best_model_path']
 
-        final_model = LSTMModel(hidden_size=best_hyperparameters['hidden_size'],
-                                num_layers=best_hyperparameters['num_layers'], lr=best_hyperparameters['lr'])
-        best_model_dir = classifier_output_dir / 'best_hyperparameters_model'
-        best_model_dir.mkdir(exist_ok=True, parents=True)
-        checkpoint_callback_final = ModelCheckpoint(monitor=f'train_{self.config.metric}', mode='max', save_top_k=1,
-                                                    dirpath=best_model_dir / 'checkpoints', filename='best_model')
-        final_trainer = L.Trainer(
-            max_epochs=self.config.nn_max_epochs,
-            logger=False,
-            callbacks=[EarlyStopping(monitor=f'train_loss', patience=3, mode='min'), checkpoint_callback_final],
-            deterministic=True
-        )
-        final_trainer.fit(final_model, final_loader)
 
 
 class OptunaModel(Model):

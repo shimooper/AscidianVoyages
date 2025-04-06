@@ -19,7 +19,7 @@ RANDOM_STATE = [0]
 NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH = [0]
 METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS = ['mcc', 'f1', 'auprc'] if not DEBUG_MODE else ['f1']
 TEST_SET_SIZE = 0.2
-# VALIDATION_SET_SIZE = 0.2  # relevant only in case of neural networks
+VALIDATION_SET_SIZE = 0.2  # relevant only in case of neural networks
 NUMBER_OF_DAYS_TO_CONSIDER = [1, 2, 3, 4] if not DEBUG_MODE else [4]
 DOWNSAMPLE_MAJORITY_CLASS = [False, True] if not DEBUG_MODE else [True]
 NN_MAX_EPOCHS = 100 if not DEBUG_MODE else 10
@@ -46,7 +46,7 @@ class Config:
     train_with_optuna: bool
     optuna_number_of_trials: int
     test_set_size: float = TEST_SET_SIZE
-    # nn_validation_set_size: float = VALIDATION_SET_SIZE
+    nn_validation_set_size: float = VALIDATION_SET_SIZE
     nn_max_epochs: int = NN_MAX_EPOCHS
     downsample_majority_class: bool = False
     max_classes_ratio: int = 4  # Relevant only if downsample_majority_class is True
