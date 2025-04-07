@@ -22,6 +22,9 @@ from xgboost import XGBClassifier
 from sklearn.feature_selection import RFECV
 from sklearn.model_selection import train_test_split
 
+from imblearn.combine import SMOTETomek
+from imblearn.pipeline import Pipeline
+
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 import lightning as L
@@ -191,11 +194,25 @@ class Model:
     def test_on_test_data(self, model_path, Xs_test, Ys_test):
         logger = setup_logger(self.model_test_dir / 'classifiers_test.log', f'MODEL_{self.model_id}_TEST')
 
-        model = joblib.load(model_path)
-        Ys_test_predictions = model.predict_proba(Xs_test)
-        mcc_on_test = matthews_corrcoef(Ys_test, Ys_test_predictions.argmax(axis=1))
-        auprc_on_test = average_precision_score(Ys_test, Ys_test_predictions[:, 1])
-        f1_on_test = f1_score(Ys_test, Ys_test_predictions.argmax(axis=1))
+        if model_path.endswith('.pkl'):
+            model = joblib.load(model_path)
+            Ys_test_predictions = model.predict_proba(Xs_test)
+            y_pred_probs = Ys_test_predictions[:, 1]
+            y_pred = Ys_test_predictions.argmax(axis=1)
+        elif model_path.endswith('.ckpt'):
+            dataset = TensorDataset(Xs_test, torch.tensor(Ys_test.values))
+            data_loader = DataLoader(dataset, batch_size=64, shuffle=False)
+            model = LSTMModel.load_from_checkpoint(model_path)
+            model.eval()
+            with torch.no_grad():
+                y_pred_probs = torch.cat([model(x) for x, _ in data_loader]).cpu().numpy().flatten()
+                y_pred = (y_pred_probs > 0.5).astype(int)
+        else:
+            raise ValueError(f"Unknown model file type: {model_path}")
+
+        mcc_on_test = matthews_corrcoef(Ys_test, y_pred)
+        auprc_on_test = average_precision_score(Ys_test, y_pred_probs)
+        f1_on_test = f1_score(Ys_test, y_pred)
 
         logger.info(
             f"Best estimator - MCC on test: {mcc_on_test}, AUPRC on test: {auprc_on_test}, F1 on test: {f1_on_test}")
@@ -211,8 +228,8 @@ class ScikitModel(Model):
         # Train
         train_logger = setup_logger(self.model_train_dir / 'classifiers_train.log', f'MODEL_{self.model_id}_TRAIN')
 
-        if self.config.downsample_majority_class:
-            Xs_train, Ys_train = downsample_negative_class(train_logger, Xs_train, Ys_train, self.config.random_state, self.config.max_classes_ratio)
+        # if self.config.downsample_majority_class:
+        #     Xs_train, Ys_train = downsample_negative_class(train_logger, Xs_train, Ys_train, self.config.random_state, self.config.max_classes_ratio)
 
         if self.config.do_feature_selection:
             selected_features_mask = self.feature_selection_on_train_data(train_logger, Xs_train, Ys_train)
@@ -221,8 +238,6 @@ class ScikitModel(Model):
 
         Xs_train_selected = Xs_train.loc[:, selected_features_mask]
         best_model_path = self.fit_on_train_data(train_logger, Xs_train_selected, Ys_train)
-
-        return
 
         # Test
         Xs_test_selected = Xs_test.loc[:, selected_features_mask]
@@ -257,8 +272,18 @@ class ScikitModel(Model):
             classifier_output_dir.mkdir(exist_ok=True, parents=True)
 
             logger.info(f"Training Classifier {class_name} with hyperparameters tuning using GridSearch and Stratified-KFold CV.")
+
+            if self.config.balance_classes:
+                smote_tomek = SMOTETomek(random_state=self.config.random_state)
+                estimator = Pipeline([
+                    ('resample', smote_tomek),
+                    ('clf', classifier)
+                ])
+            else:
+                estimator = classifier
+
             grid = GridSearchCV(
-                estimator=classifier,
+                estimator=estimator,
                 param_grid=param_grid,
                 scoring=METRIC_NAME_TO_SKLEARN_SCORER,
                 refit=self.config.metric,
@@ -378,26 +403,6 @@ class ScikitModel(Model):
             'random_state': [self.config.random_state],
         }
 
-        rfc_grid = {
-            'n_estimators': [5, 20, 100],
-            'max_depth': [None, 3, 5, 10],
-            'min_samples_split': [2, 5, 10],
-            'min_samples_leaf': [1, 2, 5],
-            'random_state': [self.config.random_state],
-            'class_weight': ['balanced', None],
-            'bootstrap': [True, False]
-        }
-
-        rfc_grid_debug = {
-            'n_estimators': [5],
-            'max_depth': [None],
-            'min_samples_split': [2],
-            'min_samples_leaf': [1],
-            'random_state': [self.config.random_state],
-            'class_weight': ['balanced'],
-            'bootstrap': [True]
-        }
-
         gbc_grid = {
             'n_estimators': [5, 20, 100],
             'max_depth': [None, 3, 5, 10],
@@ -408,50 +413,78 @@ class ScikitModel(Model):
             'subsample': [0.6, 1],
         }
 
-        decision_tree_grid = {
-            'max_depth': [None, 3, 5, 10],
-            'min_samples_split': [2, 5, 10],
-            'min_samples_leaf': [1, 2, 5],
-            'random_state': [self.config.random_state],
-            'class_weight': ['balanced'],
-        }
+        if not DEBUG_MODE:
+            rfc_grid = {
+                'n_estimators': [5, 20, 100],
+                'max_depth': [None, 3, 5, 10],
+                'min_samples_split': [2, 5, 10],
+                'min_samples_leaf': [1, 2, 5],
+                'random_state': [self.config.random_state],
+                'class_weight': ['balanced', None],
+                'bootstrap': [True, False]
+            }
+        else:
+            rfc_grid = {
+                'n_estimators': [5],
+                'max_depth': [None],
+                'min_samples_split': [2],
+                'min_samples_leaf': [1],
+                'random_state': [self.config.random_state],
+                'class_weight': ['balanced'],
+                'bootstrap': [True]
+            }
 
-        decision_tree_grid_debug = {
-            'max_depth': [5],
-            'min_samples_split': [2],
-            'min_samples_leaf': [1],
-            'random_state': [self.config.random_state],
-            'class_weight': ['balanced'],
-        }
+        if not DEBUG_MODE:
+            decision_tree_grid = {
+                'max_depth': [None, 3, 5, 10],
+                'min_samples_split': [2, 5, 10],
+                'min_samples_leaf': [1, 2, 5],
+                'random_state': [self.config.random_state],
+                'class_weight': ['balanced', None],
+            }
+        else:
+            decision_tree_grid = {
+                'max_depth': [5],
+                'min_samples_split': [2],
+                'min_samples_leaf': [1],
+                'random_state': [self.config.random_state],
+                'class_weight': ['balanced'],
+            }
 
-        xgboost_grid = {
-            'learning_rate': [0.01, 0.05, 0.1],
-            'n_estimators': [10, 50, 100],
-            'max_depth': [3, 5, 10],
-            'booster': ['dart'],
-            'n_jobs': [1],
-            'random_state': [self.config.random_state],
-            'subsample': [0.6, 1],
-        }
+        if not DEBUG_MODE:
+            xgboost_grid = {
+                'learning_rate': [0.01, 0.05, 0.1],
+                'n_estimators': [10, 50, 100],
+                'max_depth': [3, 5, 10],
+                'booster': ['dart'],
+                'n_jobs': [1],
+                'random_state': [self.config.random_state],
+                'subsample': [0.6, 1],
+            }
+        else:
+            xgboost_grid = {
+                'learning_rate': [0.01],
+                'n_estimators': [10],
+                'max_depth': [3],
+                'booster': ['dart'],
+                'n_jobs': [1],
+                'random_state': [self.config.random_state],
+                'subsample': [1],
+            }
 
-        xgboost_grid_debug = {
-            'learning_rate': [0.01],
-            'n_estimators': [10],
-            'max_depth': [3],
-            'booster': ['dart'],
-            'n_jobs': [1],
-            'random_state': [self.config.random_state],
-            'subsample': [1],
-        }
+        if self.config.balance_classes:
+            for grid in decision_tree_grid, rfc_grid, xgboost_grid:
+                for key in list(grid.keys()):
+                    grid[f'clf__{key}'] = grid.pop(key)
 
         return [
             # (KNeighborsClassifier(), knn_grid),
             # (LogisticRegression(), logistic_regression_grid),
             # (MLPClassifier(), mlp_grid),
-            (RandomForestClassifier(), rfc_grid if not DEBUG_MODE else rfc_grid_debug),
             # (GradientBoostingClassifier(), gbc_grid),
-            (DecisionTreeClassifier(), decision_tree_grid if not DEBUG_MODE else decision_tree_grid_debug),
-            (XGBClassifier(), xgboost_grid if not DEBUG_MODE else xgboost_grid_debug)
+            (RandomForestClassifier(), rfc_grid),
+            (DecisionTreeClassifier(), decision_tree_grid),
+            (XGBClassifier(), xgboost_grid)
         ]
 
     def train_lstm(self, logger, Xs_train, Ys_train, best_classifiers_metrics):
@@ -482,6 +515,10 @@ class ScikitModel(Model):
                                                           test_size=self.config.nn_validation_set_size,
                                                           random_state=self.config.random_state)
 
+        if self.config.balance_classes:
+            smote_tomek = SMOTETomek(random_state=self.config.random_state)
+            X_train, y_train = smote_tomek.fit_resample(X_train, y_train)
+
         # Grid search
         for hidden_size, num_layers, lr, batch_size in zip(hyperparameter_grid['hidden_size'],
                                                            hyperparameter_grid['num_layers'], hyperparameter_grid['lr'],
@@ -503,7 +540,7 @@ class ScikitModel(Model):
             trainer = L.Trainer(
                 max_epochs=self.config.nn_max_epochs,
                 logger=False,
-                callbacks=[EarlyStopping(monitor=f'val_loss', patience=3, mode='min'), checkpoint_callback],
+                callbacks=[EarlyStopping(monitor=f'val_loss', patience=10, mode='min'), checkpoint_callback],
                 deterministic=True
             )
             trainer.fit(model, train_loader, val_loader)
