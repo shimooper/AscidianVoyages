@@ -499,7 +499,7 @@ class ScikitModel(Model):
             model = LSTMModel(hidden_size=hidden_size, num_layers=num_layers, lr=lr)
 
             checkpoint_callback = ModelCheckpoint(monitor=f'val_{self.config.metric}', mode='max', save_top_k=1,
-                                                  dirpath=grid_combination_dir / 'checkpoints', filename='best_model')
+                                                  dirpath=grid_combination_dir / 'checkpoints', filename='best_model-epoch-{epoch}')
             trainer = L.Trainer(
                 max_epochs=self.config.nn_max_epochs,
                 logger=False,

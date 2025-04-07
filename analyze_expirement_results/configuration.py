@@ -1,12 +1,17 @@
 from pathlib import Path
 import argparse
 from dataclasses import dataclass, asdict
+import platform
 
 from sklearn.metrics import make_scorer, matthews_corrcoef
 import pandas as pd
 
-
-DEBUG_MODE = True
+if platform.system() == "Linux":
+    DEBUG_MODE = False
+elif platform.system() == "Windows":
+    DEBUG_MODE = True
+else:
+    raise Exception(f"Unsupported platform: {platform.system()}")
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR / 'data'

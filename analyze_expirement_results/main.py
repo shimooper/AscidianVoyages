@@ -69,11 +69,10 @@ def main(outputs_dir, cpus, do_feature_selection, train_with_optuna, optuna_numb
 
     if run_configurations_in_parallel:
         with ProcessPoolExecutor(max_workers=cpus) as executor:
-            futures = []
             for flags_combination in flags_combinations:
                 config = create_config(flags_combination, configuration_id, max(1, cpus // len(flags_combinations)),
                                        outputs_dir, do_feature_selection, train_with_optuna, optuna_number_of_trials)
-                futures.append(executor.submit(run_analysis_of_one_config, config, processed_df))
+                executor.submit(run_analysis_of_one_config, config, processed_df)
                 configuration_id += 1
     else:
         for flags_combination in flags_combinations:
@@ -82,6 +81,7 @@ def main(outputs_dir, cpus, do_feature_selection, train_with_optuna, optuna_numb
             run_analysis_of_one_config(config, processed_df)
             configuration_id += 1
 
+    print('All configurations have been processed.')
     # aggregate_all_configuration_results(outputs_dir)
 
 
