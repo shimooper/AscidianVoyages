@@ -1,8 +1,7 @@
 import pandas as pd
 import argparse
-import seaborn as sns
-import matplotlib.pyplot as plt
 import itertools
+from collections import defaultdict
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed, ProcessPoolExecutor
 
@@ -12,6 +11,7 @@ from configuration import SCRIPT_DIR, STRATIFY_TRAIN_TEST_SPLIT, RANDOM_STATE, M
 from preprocess import permanent_preprocess_data, preprocess_data_by_config
 from routes_visualization import plot_timelines
 from model import ScikitModel, OptunaModel
+from utils import plot_models_comparison
 
 
 def create_config(flag_combination, configuration_id, cpus, outputs_dir, do_feature_selection, train_with_optuna, optuna_number_of_trials):
@@ -56,7 +56,7 @@ def run_analysis_of_one_config(config: Config, processed_df):
         model_instance.run_analysis()
         model_id += 1
 
-    # aggregate_test_metrics_of_one_configuration(config)
+    aggregate_validation_metrics_of_one_configuration(config)
 
 
 def main(outputs_dir, cpus, do_feature_selection, train_with_optuna, optuna_number_of_trials, run_configurations_in_parallel):
@@ -85,19 +85,23 @@ def main(outputs_dir, cpus, do_feature_selection, train_with_optuna, optuna_numb
     # aggregate_all_configuration_results(outputs_dir)
 
 
-def aggregate_test_metrics_of_one_configuration(config: Config):
-    all_models_test_results = {}
+def aggregate_validation_metrics_of_one_configuration(config: Config):
+    classifier_name_to_validation_results = defaultdict(dict)
 
     for model_dir_path in config.models_dir_path.iterdir():
-        model_test_results_path = model_dir_path / 'test_outputs' / 'best_classifier_test_results.csv'
-        model_test_results_df = pd.read_csv(model_test_results_path)
-        all_models_test_results[model_dir_path.name] = model_test_results_df.loc[0]
+        model_validation_results_path = model_dir_path / 'train_outputs' / 'best_classifier' / 'best_classifier_from_each_class.csv'
+        model_validation_results_df = pd.read_csv(model_validation_results_path, index_col='model_name')[
+            ['mean_mcc_on_held_out_folds', 'mean_auprc_on_held_out_folds', 'mean_f1_on_held_out_folds']]
+        for classifier_name in model_validation_results_df.index.values:
+            classifier_name_to_validation_results[classifier_name][model_dir_path.name] = model_validation_results_df.loc[classifier_name]
 
-    all_models_test_results_df = pd.DataFrame.from_dict(all_models_test_results, orient='index')
-    all_models_test_results_df.index.name = 'model_name'
-    all_models_test_results_df.reset_index(inplace=True)
+    for classifier_name, days_to_results_dict in classifier_name_to_validation_results.items():
+        days_comparison_df = pd.DataFrame.from_dict(days_to_results_dict, orient='index')
+        days_comparison_df.index.name = 'model_name'
 
-    plot_models_comparison(all_models_test_results_df, config.outputs_dir_path)
+        classifier_comparison_dir = config.models_dir_path / 'classifier_comparison' / classifier_name
+        classifier_comparison_dir.mkdir(exist_ok=True, parents=True)
+        plot_models_comparison(days_comparison_df.reset_index(), classifier_comparison_dir, f'Models Comparison - Validation set(s) - {classifier_name}')
 
 
 def aggregate_all_configuration_results(outputs_dir: Path):
@@ -123,24 +127,6 @@ def aggregate_all_configuration_results(outputs_dir: Path):
     all_config_best_results_df['auprc'] = pd.to_numeric(all_config_best_results_df['auprc'])
 
     plot_models_comparison(all_config_best_results_df, outputs_dir)
-
-
-def plot_models_comparison(results_df, outputs_dir: Path):
-    all_models_test_results_df_melted = results_df.melt(id_vars='model_name', var_name='metric', value_name='value')
-    plt.figure(figsize=(10, 6))
-    sns.barplot(data=all_models_test_results_df_melted, x='metric', y='value', hue='model_name', palette='viridis')
-    plt.title('Comparison of models')
-    plt.ylabel('Score')
-    plt.xlabel('Metric')
-    plt.legend(title='Model', bbox_to_anchor=(1.05, 0.5), loc='center left', borderaxespad=0.)
-    plt.tight_layout()
-    plt.savefig(outputs_dir / 'all_models_comparison.png', dpi=300)
-    plt.close()
-
-    results_df.set_index('model_name', inplace=True)
-    max_indices = results_df.idxmax()
-    results_df.loc['best_model'] = max_indices
-    results_df.to_csv(outputs_dir / 'all_models_comparison.csv')
 
 
 if __name__ == "__main__":

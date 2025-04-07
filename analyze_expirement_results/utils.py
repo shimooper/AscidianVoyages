@@ -2,9 +2,12 @@ import os
 import pandas as pd
 import logging
 import re
+from pathlib import Path
 from collections import defaultdict
 import numpy as np
 import torch
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 
 METRICS_NAME_TO_AVERAGE_METRIC_NAME = {
@@ -144,3 +147,21 @@ def downsample_negative_class(logger, Xs_train, Ys_train, random_state, max_clas
     logger.info(f"Final class distribution: {Ys_balanced.value_counts()}")
 
     return Xs_balanced, Ys_balanced
+
+
+def plot_models_comparison(results_df, outputs_dir: Path, title):
+    all_models_test_results_df_melted = results_df.melt(id_vars='model_name', var_name='metric', value_name='value')
+    plt.figure(figsize=(10, 6))
+    sns.barplot(data=all_models_test_results_df_melted, x='metric', y='value', hue='model_name', palette='viridis')
+    plt.title(title)
+    plt.ylabel('Score')
+    plt.xlabel('Metric')
+    plt.legend(title='Model', bbox_to_anchor=(1.05, 0.5), loc='center left', borderaxespad=0.)
+    plt.tight_layout()
+    plt.savefig(outputs_dir / 'all_models_comparison.png', dpi=300)
+    plt.close()
+
+    results_df.set_index('model_name', inplace=True)
+    max_indices = results_df.idxmax()
+    results_df.loc['best_model'] = max_indices
+    results_df.to_csv(outputs_dir / 'all_models_comparison.csv')

@@ -1,4 +1,6 @@
 import itertools
+import shutil
+
 import joblib
 import pandas as pd
 import json
@@ -15,6 +17,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.neural_network import MLPClassifier
+import xgboost
 from xgboost import XGBClassifier
 from sklearn.feature_selection import RFECV
 from sklearn.model_selection import train_test_split
@@ -28,7 +31,7 @@ import optuna
 
 from utils import setup_logger, convert_pascal_to_snake_case, get_column_groups_sorted, convert_columns_to_int, \
     get_lived_columns_to_consider, merge_dicts_average, convert_features_df_to_tensor_for_rnn, downsample_negative_class, \
-    DAYS_DESCRIPTIONS
+    DAYS_DESCRIPTIONS, plot_models_comparison
 from configuration import METRIC_NAME_TO_SKLEARN_SCORER, DEBUG_MODE, Config
 from model_lstm import LSTMModel
 
@@ -219,6 +222,8 @@ class ScikitModel(Model):
         Xs_train_selected = Xs_train.loc[:, selected_features_mask]
         best_model_path = self.fit_on_train_data(train_logger, Xs_train_selected, Ys_train)
 
+        return
+
         # Test
         Xs_test_selected = Xs_test.loc[:, selected_features_mask]
         self.test_on_test_data(best_model_path, Xs_test_selected, Ys_test)
@@ -244,7 +249,6 @@ class ScikitModel(Model):
         return rfecv.support_
 
     def fit_on_train_data(self, logger, Xs_train, Ys_train):
-        best_classifiers = {}
         best_classifiers_metrics = {}
         classifiers = self.create_classifiers_and_param_grids()
         for classifier, param_grid in classifiers:
@@ -267,8 +271,8 @@ class ScikitModel(Model):
                 grid.fit(Xs_train, Ys_train)
                 grid_results = pd.DataFrame.from_dict(grid.cv_results_)
                 grid_results.to_csv(classifier_output_dir / f'{class_name}_grid_results.csv')
-                best_classifiers[class_name] = grid.best_estimator_
-                joblib.dump(grid.best_estimator_, classifier_output_dir / f"best_{class_name}.pkl")
+                best_estimator_path = classifier_output_dir / f"best_{class_name}.pkl"
+                joblib.dump(grid.best_estimator_, best_estimator_path)
 
                 # Note: grid.best_score_ == grid_results['mean_test_{metric}'][grid.best_index_] (the mean cross-validated score of the best_estimator)
                 logger.info(
@@ -288,7 +292,8 @@ class ScikitModel(Model):
                                                         grid_results['mean_train_f1'][grid.best_index_],
                                                         grid_results['mean_test_mcc'][grid.best_index_],
                                                         grid_results['mean_test_auprc'][grid.best_index_],
-                                                        grid_results['mean_test_f1'][grid.best_index_])
+                                                        grid_results['mean_test_f1'][grid.best_index_],
+                                                        best_estimator_path)
 
                 if class_name in ['DecisionTreeClassifier', 'RandomForestClassifier', 'GradientBoostingClassifier',
                                   'XGBClassifier']:
@@ -305,7 +310,7 @@ class ScikitModel(Model):
             except Exception as e:
                 logger.error(f"Failed to train classifier {class_name} with error: {e}")
 
-        best_lstm_model_path = self.train_lstm(logger, Xs_train, Ys_train, best_classifiers_metrics)
+        self.train_lstm(logger, Xs_train, Ys_train, best_classifiers_metrics)
 
         best_classifier_dir = self.model_train_dir / 'best_classifier'
         best_classifier_dir.mkdir(exist_ok=True, parents=True)
@@ -314,18 +319,22 @@ class ScikitModel(Model):
                                                               'mean_auprc_on_train_folds', 'mean_f1_on_train_folds',
                                                               'mean_mcc_on_held_out_folds',
                                                               'mean_auprc_on_held_out_folds',
-                                                              'mean_f1_on_held_out_folds'])
-        best_classifiers_df.index.name = 'classifier_class'
+                                                              'mean_f1_on_held_out_folds', 'model_path'])
+        best_classifiers_df.index.name = 'model_name'
         best_classifiers_df.to_csv(best_classifier_dir / 'best_classifier_from_each_class.csv')
+
+        plot_models_comparison(best_classifiers_df[['mean_mcc_on_held_out_folds', 'mean_auprc_on_held_out_folds',
+                                                    'mean_f1_on_held_out_folds']].reset_index(),
+                               best_classifier_dir, f'Models Comparison - Validation set(s) - {self.number_of_days_to_consider} days')
 
         best_classifier_class = best_classifiers_df[f'mean_{self.config.metric}_on_held_out_folds'].idxmax()
         logger.info(f'Best classifier (according to mean_{self.config.metric}_on_held_out_folds): {best_classifier_class}')
 
-        return
+        best_classifier_metrics = best_classifiers_df.loc[[best_classifier_class]].reset_index()
+        best_classifier_metrics.to_csv(best_classifier_dir / 'best_classifier.csv', index=False)
 
-        # Save the best classifier to disk
-        best_model_path = best_classifier_dir / 'best_model.pkl'
-        joblib.dump(best_classifiers[best_classifier_class], best_model_path)
+        # Copy the best classifier to the best_classifier_dir
+        best_model_path = shutil.copy(best_classifiers_df.loc[best_classifier_class, 'model_path'], best_classifier_dir)
 
         # Save metadata
         metadata = {
@@ -333,12 +342,12 @@ class ScikitModel(Model):
             'joblib_version': joblib.__version__,
             'sklearn_version': sklearn.__version__,
             'pandas_version': pd.__version__,
+            'xgboost_version': xgboost.__version__,
+            'lightning_version': L.__version__,
+            'torch_version': torch.__version__,
         }
         with open(best_classifier_dir / 'model_metadata.json', 'w') as f:
             json.dump(metadata, f)
-
-        best_classifier_metrics = best_classifiers_df.loc[[best_classifier_class]].reset_index()
-        best_classifier_metrics.to_csv(best_classifier_dir / 'best_classifier_train_results.csv', index=False)
 
         return best_model_path
 
@@ -447,7 +456,7 @@ class ScikitModel(Model):
 
     def train_lstm(self, logger, Xs_train, Ys_train, best_classifiers_metrics):
         L.seed_everything(self.config.random_state, workers=True)
-        classifier_output_dir = self.model_train_dir / 'lstm'
+        classifier_output_dir = self.model_train_dir / 'lstm_classifier'
 
         Xs_train = convert_features_df_to_tensor_for_rnn(Xs_train)
 
@@ -543,13 +552,10 @@ class ScikitModel(Model):
             f"Mean AUPRC on held-out folds: {best_model['mean_test_auprc']}, "
             f"Mean F1 o held-out folds: {best_model['mean_test_f1']}")
 
-        best_classifiers_metrics['lstm'] = [best_model_index, best_model['mean_train_mcc'],
+        best_classifiers_metrics['LSTMClassifier'] = [best_model_index, best_model['mean_train_mcc'],
                                             best_model['mean_train_auprc'], best_model['mean_train_f1'],
                                             best_model['mean_test_mcc'], best_model['mean_test_auprc'],
-                                            best_model['mean_test_f1']]
-
-        return best_model['best_model_path']
-
+                                            best_model['mean_test_f1'], best_model['best_model_path']]
 
 
 class OptunaModel(Model):
