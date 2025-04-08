@@ -91,7 +91,7 @@ def aggregate_validation_metrics_of_one_configuration(config: Config):
     for model_dir_path in config.models_dir_path.iterdir():
         model_validation_results_path = model_dir_path / 'train_outputs' / 'best_classifier' / 'best_classifier_from_each_class.csv'
         model_validation_results_df = pd.read_csv(model_validation_results_path, index_col='model_name')[
-            ['mean_mcc_on_held_out_folds', 'mean_auprc_on_held_out_folds', 'mean_f1_on_held_out_folds']]
+            ['validation mcc', 'validation auprc', 'validation f1']]
         for classifier_name in model_validation_results_df.index.values:
             classifier_name_to_validation_results[classifier_name][model_dir_path.name] = model_validation_results_df.loc[classifier_name]
 

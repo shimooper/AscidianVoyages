@@ -26,8 +26,8 @@ METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS = ['f1', 'auprc'] if not DEBUG_MODE els
 TEST_SET_SIZE = 0.2
 VALIDATION_SET_SIZE = 0.2  # relevant only in case of neural networks
 NUMBER_OF_DAYS_TO_CONSIDER = [1, 2, 3, 4] if not DEBUG_MODE else [4, 3]
-BALANCE_CLASSES_IN_TRAINING = [False, True] if not DEBUG_MODE else [False, True]
-NN_MAX_EPOCHS = 100 if not DEBUG_MODE else 5
+BALANCE_CLASSES_IN_TRAINING = [False, True] if not DEBUG_MODE else [True]
+NN_MAX_EPOCHS = 20 if not DEBUG_MODE else 5
 
 METRIC_NAME_TO_SKLEARN_SCORER = {'mcc': make_scorer(matthews_corrcoef), 'f1': 'f1', 'auprc': 'average_precision'}
 
@@ -54,7 +54,7 @@ class Config:
     nn_validation_set_size: float = VALIDATION_SET_SIZE
     nn_max_epochs: int = NN_MAX_EPOCHS
     balance_classes: bool = False
-    max_classes_ratio: int = 4  # Relevant only if downsample_majority_class is True
+    max_classes_ratio: int = 0.25  # Relevant only if balance_classes is True
 
     def to_csv(self, path: Path):
         config_df = pd.DataFrame(list(asdict(self).items()), columns=['key', 'value'])

@@ -21,13 +21,16 @@ def plot_timeline(routes_df, lived_columns, condition_columns, condition_full_na
         alive_conditions = [condition for condition, status in zip(condition_values, survival_values) if status == 0]
         dead_conditions = [condition for condition, status in zip(condition_values, survival_values) if status == 1]
 
-        ax.scatter(alive_days, alive_conditions, color='green', alpha=0.5, label='Alive' if index == 0 else "")
-        ax.scatter(dead_days, dead_conditions, color='red', alpha=0.5, label='Dead' if index == 0 else "")
+        ax.scatter(alive_days, alive_conditions, color='green', alpha=0.5, label='Alive')
+        ax.scatter(dead_days, dead_conditions, color='red', alpha=0.5, label='Dead')
 
     ax.set_title(f'Timeline of the Effect of {condition_full_name} on Ascidians Survival')
     ax.set_xlabel('Day')
     ax.set_ylabel(y_axis_label)
-    ax.legend(loc='center right')
+
+    handles, labels = ax.get_legend_handles_labels()
+    unique = dict(zip(labels, handles))
+    ax.legend(unique.values(), unique.keys(), loc='center right')
     ax.grid(True)
 
     fig.savefig(output_dir / f'routes_timeline_{condition_full_name.lower()}', dpi=300)

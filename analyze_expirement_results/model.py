@@ -1,5 +1,6 @@
 import itertools
 import shutil
+from collections import Counter
 
 import joblib
 import pandas as pd
@@ -23,6 +24,7 @@ from sklearn.feature_selection import RFECV
 from sklearn.model_selection import train_test_split
 
 from imblearn.combine import SMOTETomek
+from imblearn.under_sampling import RandomUnderSampler
 from imblearn.pipeline import Pipeline
 
 import torch
@@ -200,6 +202,7 @@ class Model:
             y_pred_probs = Ys_test_predictions[:, 1]
             y_pred = Ys_test_predictions.argmax(axis=1)
         elif model_path.endswith('.ckpt'):
+            Xs_test = convert_features_df_to_tensor_for_rnn(Xs_test)
             dataset = TensorDataset(Xs_test, torch.tensor(Ys_test.values))
             data_loader = DataLoader(dataset, batch_size=64, shuffle=False)
             model = LSTMModel.load_from_checkpoint(model_path)
@@ -265,7 +268,7 @@ class ScikitModel(Model):
 
     def fit_on_train_data(self, logger, Xs_train, Ys_train):
         best_classifiers_metrics = {}
-        classifiers = self.create_classifiers_and_param_grids()
+        classifiers = self.create_classifiers_and_param_grids(Ys_train)
         for classifier, param_grid in classifiers:
             class_name = classifier.__class__.__name__
             classifier_output_dir = self.model_train_dir / convert_pascal_to_snake_case(class_name)
@@ -274,10 +277,10 @@ class ScikitModel(Model):
             logger.info(f"Training Classifier {class_name} with hyperparameters tuning using GridSearch and Stratified-KFold CV.")
 
             if self.config.balance_classes:
-                logger.info(f"Using SMOTETomek to balance classes during training (integrated with GridSearchCV.")
-                smote_tomek = SMOTETomek(random_state=self.config.random_state)
+                logger.info(f"Using RandomUnderSampler to balance classes during training (integrated with GridSearchCV.")
+                rus = RandomUnderSampler(random_state=self.config.random_state, sampling_strategy=self.config.max_classes_ratio)
                 estimator = Pipeline([
-                    ('resample', smote_tomek),
+                    ('undersample', rus),
                     ('clf', classifier)
                 ])
             else:
@@ -341,24 +344,21 @@ class ScikitModel(Model):
         best_classifier_dir = self.model_train_dir / 'best_classifier'
         best_classifier_dir.mkdir(exist_ok=True, parents=True)
         best_classifiers_df = pd.DataFrame.from_dict(best_classifiers_metrics, orient='index',
-                                                     columns=['best_index', 'mean_mcc_on_train_folds',
-                                                              'mean_auprc_on_train_folds', 'mean_f1_on_train_folds',
-                                                              'mean_mcc_on_held_out_folds',
-                                                              'mean_auprc_on_held_out_folds',
-                                                              'mean_f1_on_held_out_folds', 'model_path'])
+                                                     columns=['best_index', 'train mcc', 'train auprc', 'train f1',
+                                                              'validation mcc', 'validation auprc', 'validation f1',
+                                                              'model_path'])
         best_classifiers_df.index.name = 'model_name'
         best_classifiers_df.to_csv(best_classifier_dir / 'best_classifier_from_each_class.csv')
         logger.info(f"Aggregated the best classifiers from each classifier (after hyper-parameter tuning), and saved "
                     f"them to {best_classifier_dir / 'best_classifier_from_each_class.csv'}")
 
-        plot_models_comparison(best_classifiers_df[['mean_mcc_on_held_out_folds', 'mean_auprc_on_held_out_folds',
-                                                    'mean_f1_on_held_out_folds']].reset_index(),
+        plot_models_comparison(best_classifiers_df[['validation mcc', 'validation auprc', 'validation f1']].reset_index(),
                                best_classifier_dir, f'Models Comparison - Validation set(s) - {self.number_of_days_to_consider} days')
 
-        best_classifier_class = best_classifiers_df[f'mean_{self.config.metric}_on_held_out_folds'].idxmax()
+        best_classifier_class = best_classifiers_df[f'validation {self.config.metric}'].idxmax()
         best_classifier_results = best_classifiers_df.loc[best_classifier_class]
         best_classifier_results.to_csv(best_classifier_dir / 'best_classifier.csv')
-        logger.info(f'Best classifier (according to mean_{self.config.metric}_on_held_out_folds): {best_classifier_class}. '
+        logger.info(f'Best classifier (validation {self.config.metric}): {best_classifier_class}. '
                     f'Saved its metrics to {best_classifier_dir / "best_classifier.csv"}')
 
         # Copy the best classifier to the best_classifier_dir
@@ -379,7 +379,7 @@ class ScikitModel(Model):
 
         return best_model_path
 
-    def create_classifiers_and_param_grids(self):
+    def create_classifiers_and_param_grids(self, Ys_train):
         knn_grid = {
             'n_neighbors': [5, 10],
             'weights': ['uniform', 'distance'],
@@ -455,6 +455,7 @@ class ScikitModel(Model):
             }
 
         if not DEBUG_MODE:
+            Ys_trains_classes_counts = Counter(Ys_train)
             xgboost_grid = {
                 'learning_rate': [0.01, 0.05, 0.1],
                 'n_estimators': [10, 50, 100],
@@ -463,6 +464,7 @@ class ScikitModel(Model):
                 'n_jobs': [1],
                 'random_state': [self.config.random_state],
                 'subsample': [0.6, 1],
+                'scale_pos_weight': [1, Ys_trains_classes_counts[0] / Ys_trains_classes_counts[1]],
             }
         else:
             xgboost_grid = {
@@ -473,6 +475,7 @@ class ScikitModel(Model):
                 'n_jobs': [1],
                 'random_state': [self.config.random_state],
                 'subsample': [1],
+                'scale_pos_weight': [1],
             }
 
         if self.config.balance_classes:
@@ -516,22 +519,24 @@ class ScikitModel(Model):
 
         X_train, X_val, y_train, y_val = train_test_split(Xs_train, Ys_train,
                                                           test_size=self.config.nn_validation_set_size,
-                                                          random_state=self.config.random_state)
+                                                          random_state=self.config.random_state,
+                                                          stratify=Ys_train)
         logger.info(f"Split the train data to train and validation sets (validation ratio is {self.config.nn_validation_set_size})")
 
         if self.config.balance_classes:
-            logger.info(f"Resampling train examples using SMOTETomek. Before: {y_train.value_counts()}")
-            smote_tomek = SMOTETomek(random_state=self.config.random_state)
-            X_train, y_train = smote_tomek.fit_resample(X_train, y_train)
+            logger.info(f"Resampling train examples using RandomUnderSampler. Before: {y_train.value_counts()}")
+            rus = RandomUnderSampler(random_state=self.config.random_state, sampling_strategy=self.config.max_classes_ratio)
+            X_train, y_train = rus.fit_resample(X_train, y_train)
             logger.info(f"After resampling: {y_train.value_counts()}")
 
         X_train = convert_features_df_to_tensor_for_rnn(X_train)
         X_val = convert_features_df_to_tensor_for_rnn(X_val)
 
         # Grid search
-        for hidden_size, num_layers, lr, batch_size in zip(hyperparameter_grid['hidden_size'],
-                                                           hyperparameter_grid['num_layers'], hyperparameter_grid['lr'],
-                                                           hyperparameter_grid['batch_size']):
+        for hidden_size, num_layers, lr, batch_size in itertools.product(hyperparameter_grid['hidden_size'],
+                                                                         hyperparameter_grid['num_layers'],
+                                                                         hyperparameter_grid['lr'],
+                                                                         hyperparameter_grid['batch_size']):
             grid_combination_dir = classifier_output_dir / f'hidden_size_{hidden_size}_num_layers_{num_layers}_lr_{lr}_batch_size_{batch_size}'
             grid_combination_dir.mkdir(exist_ok=True, parents=True)
 
@@ -576,9 +581,9 @@ class ScikitModel(Model):
 
             # The keys of the metrics are like this to match the ones outputted from GridSearchCV
             all_results.append({'hidden_size': hidden_size, 'num_layers': num_layers, 'lr': lr, 'batch_size': batch_size,
-                                'mean_test_mcc': val_mcc, 'mean_test_f1': val_f1, 'mean_test_auprc': val_auprc,
-                                'mean_train_mcc': train_mcc, 'mean_train_f1': train_f1, 'mean_train_auprc': train_auprc,
-                                'best_model_path': grid_combination_dir / 'checkpoints' / 'best_model.ckpt'})
+                                'validation mcc': val_mcc, 'validation f1': val_f1, 'validation auprc': val_auprc,
+                                'train mcc': train_mcc, 'train f1': train_f1, 'train auprc': train_auprc,
+                                'best_model_path': best_model_path})
 
         # Save all hyperparameter results to CSV
         results_df = pd.DataFrame(all_results)
@@ -586,14 +591,14 @@ class ScikitModel(Model):
         logger.info(f"Hyperparameter search results saved to {classifier_output_dir / 'hyperparameter_results.csv'}")
 
         # Find the best hyperparameters
-        best_model_index = results_df[f'mean_test_{self.config.metric}'].idxmax()
+        best_model_index = results_df[f'validation {self.config.metric}'].idxmax()
         best_model = results_df.loc[best_model_index]
 
         logger.info(f"Best LSTM model:\n{best_model}")
-        best_classifiers_metrics['LSTMClassifier'] = [best_model_index, best_model['mean_train_mcc'],
-                                            best_model['mean_train_auprc'], best_model['mean_train_f1'],
-                                            best_model['mean_test_mcc'], best_model['mean_test_auprc'],
-                                            best_model['mean_test_f1'], best_model['best_model_path']]
+        best_classifiers_metrics['LSTMClassifier'] = [best_model_index, best_model['train mcc'],
+                                            best_model['train auprc'], best_model['train f1'],
+                                            best_model['validation mcc'], best_model['validation auprc'],
+                                            best_model['validation f1'], best_model['best_model_path']]
 
 
 class OptunaModel(Model):
