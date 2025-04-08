@@ -195,6 +195,7 @@ class Model:
 
     def test_on_test_data(self, model_path, Xs_test, Ys_test):
         logger = setup_logger(self.model_test_dir / 'classifiers_test.log', f'MODEL_{self.model_id}_TEST')
+        device = torch.device('cpu')
 
         if model_path.endswith('.pkl'):
             model = joblib.load(model_path)
@@ -202,10 +203,11 @@ class Model:
             y_pred_probs = Ys_test_predictions[:, 1]
             y_pred = Ys_test_predictions.argmax(axis=1)
         elif model_path.endswith('.ckpt'):
-            Xs_test = convert_features_df_to_tensor_for_rnn(Xs_test)
-            dataset = TensorDataset(Xs_test, torch.tensor(Ys_test.values))
+            Xs_test = convert_features_df_to_tensor_for_rnn(Xs_test, device)
+            dataset = TensorDataset(Xs_test, torch.tensor(Ys_test.values, device=device))
             data_loader = DataLoader(dataset, batch_size=64, shuffle=False)
             model = LSTMModel.load_from_checkpoint(model_path)
+            model.to(device)
             model.eval()
             with torch.no_grad():
                 y_pred_probs = torch.cat([model(x) for x, _ in data_loader]).cpu().numpy().flatten()
@@ -496,6 +498,7 @@ class ScikitModel(Model):
     def train_lstm(self, logger, Xs_train, Ys_train, best_classifiers_metrics):
         logger.info(f"Training LSTM Classifier with hyperparameters tuning using a fixed train-validation split")
 
+        device = torch.device('cpu')
         L.seed_everything(self.config.random_state, workers=True)
         classifier_output_dir = self.model_train_dir / 'lstm_classifier'
 
@@ -512,7 +515,7 @@ class ScikitModel(Model):
                 'hidden_size': [8],
                 'num_layers': [1],
                 'lr': [1e-4],
-                'batch_size': [16]
+                'batch_size': [32]
             }
 
         all_results = []
@@ -529,8 +532,8 @@ class ScikitModel(Model):
             X_train, y_train = rus.fit_resample(X_train, y_train)
             logger.info(f"After resampling: {y_train.value_counts()}")
 
-        X_train = convert_features_df_to_tensor_for_rnn(X_train)
-        X_val = convert_features_df_to_tensor_for_rnn(X_val)
+        X_train = convert_features_df_to_tensor_for_rnn(X_train, device)
+        X_val = convert_features_df_to_tensor_for_rnn(X_val, device)
 
         # Grid search
         for hidden_size, num_layers, lr, batch_size in itertools.product(hyperparameter_grid['hidden_size'],
@@ -540,19 +543,21 @@ class ScikitModel(Model):
             grid_combination_dir = classifier_output_dir / f'hidden_size_{hidden_size}_num_layers_{num_layers}_lr_{lr}_batch_size_{batch_size}'
             grid_combination_dir.mkdir(exist_ok=True, parents=True)
 
-            train_dataset = TensorDataset(X_train, torch.tensor(y_train.values))
-            val_dataset = TensorDataset(X_val, torch.tensor(y_val.values))
+            train_dataset = TensorDataset(X_train, torch.tensor(y_train.values, device=device))
+            val_dataset = TensorDataset(X_val, torch.tensor(y_val.values, device=device))
 
             train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
             val_loader = DataLoader(val_dataset, batch_size=len(val_dataset), shuffle=False)
 
             model = LSTMModel(hidden_size=hidden_size, num_layers=num_layers, lr=lr)
+            model.to(device)
 
             checkpoint_callback = ModelCheckpoint(monitor=f'val_{self.config.metric}', mode='max', save_top_k=1,
                                                   dirpath=grid_combination_dir / 'checkpoints', filename='best_model-epoch-{epoch}')
             trainer = L.Trainer(
                 max_epochs=self.config.nn_max_epochs,
-                logger=False,
+                logger=True,
+                default_root_dir=grid_combination_dir,  # logs directory
                 callbacks=[EarlyStopping(monitor=f'val_loss', patience=10, mode='min'), checkpoint_callback],
                 deterministic=True
             )
@@ -560,10 +565,12 @@ class ScikitModel(Model):
 
             best_model_path = checkpoint_callback.best_model_path
             best_model = LSTMModel.load_from_checkpoint(best_model_path)
+            best_model.to(device)
             best_model.eval()
 
             with torch.no_grad():
-                y_train_pred_probs = torch.cat([best_model(x) for x, _ in train_loader]).cpu().numpy().flatten()
+                train_loader_for_evaluation = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
+                y_train_pred_probs = torch.cat([best_model(x) for x, _ in train_loader_for_evaluation]).cpu().numpy().flatten()
                 y_train_pred = (y_train_pred_probs > 0.5).astype(int)
                 y_val_pred_probs = torch.cat([best_model(x) for x, _ in val_loader]).cpu().numpy().flatten()
                 y_val_pred = (y_val_pred_probs > 0.5).astype(int)

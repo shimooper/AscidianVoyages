@@ -14,3 +14,4 @@ dependencies:
   - lightning=2.5.1
   - xgboost
   - imbalanced-learn
+  - tensorboard

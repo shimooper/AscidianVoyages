@@ -93,7 +93,7 @@ def merge_dicts_average(dict_list):
     return {METRICS_NAME_TO_AVERAGE_METRIC_NAME[key]: sum_dict[key] / count_dict[key] for key in sum_dict}
 
 
-def convert_features_df_to_tensor_for_rnn(X_df):
+def convert_features_df_to_tensor_for_rnn(X_df, device):
     # Reshape DataFrame into (n_samples, number_of_days, 2)
 
     n_samples = X_df.shape[0]
@@ -107,7 +107,7 @@ def convert_features_df_to_tensor_for_rnn(X_df):
     tensor_data = np.stack([temperature, salinity], axis=-1)  # Shape (n_samples, number_of_days, 2)
 
     # Convert to PyTorch tensor
-    tensor_data = torch.tensor(tensor_data, dtype=torch.float32)
+    tensor_data = torch.tensor(tensor_data, dtype=torch.float32, device=device)
     return tensor_data
 
 

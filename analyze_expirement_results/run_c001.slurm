@@ -15,6 +15,7 @@ echo "Memory per node: $SLURM_MEM_PER_NODE MB"
 echo "Allocated CPUs: $SLURM_JOB_CPUS_PER_NODE"
 echo "Job name: $SLURM_JOB_NAME"
 
+export CUDA_VISIBLE_DEVICES=""
 export HOME=/home/ai_center/ai_users/yairshimony
 source ~/miniconda/etc/profile.d/conda.sh
 conda activate ships
