@@ -4,7 +4,7 @@
 #SBATCH --account=gpu-research
 #SBATCH --partition=cpu-killable
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=48
+#SBATCH --cpus-per-task=96
 #SBATCH --mem=64G
 #SBATCH --output=/home/ai_center/ai_users/yairshimony/ships/analyze_expirement_results/%j.out
 #SBATCH --error=/home/ai_center/ai_users/yairshimony/ships/analyze_expirement_results/%j.err
