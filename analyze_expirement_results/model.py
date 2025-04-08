@@ -215,7 +215,7 @@ class Model:
         f1_on_test = f1_score(Ys_test, y_pred)
 
         logger.info(
-            f"Best estimator - MCC on test: {mcc_on_test}, AUPRC on test: {auprc_on_test}, F1 on test: {f1_on_test}")
+            f"Best estimator ({model.__class__}) - MCC on test: {mcc_on_test}, AUPRC on test: {auprc_on_test}, F1 on test: {f1_on_test}")
 
         test_results = pd.DataFrame({'mcc': [mcc_on_test], 'auprc': [auprc_on_test], 'f1': [f1_on_test]})
         test_results.to_csv(self.model_test_dir / 'best_classifier_test_results.csv', index=False)
@@ -274,6 +274,7 @@ class ScikitModel(Model):
             logger.info(f"Training Classifier {class_name} with hyperparameters tuning using GridSearch and Stratified-KFold CV.")
 
             if self.config.balance_classes:
+                logger.info(f"Using SMOTETomek to balance classes during training (integrated with GridSearchCV.")
                 smote_tomek = SMOTETomek(random_state=self.config.random_state)
                 estimator = Pipeline([
                     ('resample', smote_tomek),
@@ -347,19 +348,21 @@ class ScikitModel(Model):
                                                               'mean_f1_on_held_out_folds', 'model_path'])
         best_classifiers_df.index.name = 'model_name'
         best_classifiers_df.to_csv(best_classifier_dir / 'best_classifier_from_each_class.csv')
+        logger.info(f"Aggregated the best classifiers from each classifier (after hyper-parameter tuning), and saved "
+                    f"them to {best_classifier_dir / 'best_classifier_from_each_class.csv'}")
 
         plot_models_comparison(best_classifiers_df[['mean_mcc_on_held_out_folds', 'mean_auprc_on_held_out_folds',
                                                     'mean_f1_on_held_out_folds']].reset_index(),
                                best_classifier_dir, f'Models Comparison - Validation set(s) - {self.number_of_days_to_consider} days')
 
         best_classifier_class = best_classifiers_df[f'mean_{self.config.metric}_on_held_out_folds'].idxmax()
-        logger.info(f'Best classifier (according to mean_{self.config.metric}_on_held_out_folds): {best_classifier_class}')
-
-        best_classifier_metrics = best_classifiers_df.loc[[best_classifier_class]].reset_index()
-        best_classifier_metrics.to_csv(best_classifier_dir / 'best_classifier.csv', index=False)
+        best_classifier_results = best_classifiers_df.loc[best_classifier_class]
+        best_classifier_results.to_csv(best_classifier_dir / 'best_classifier.csv')
+        logger.info(f'Best classifier (according to mean_{self.config.metric}_on_held_out_folds): {best_classifier_class}. '
+                    f'Saved its metrics to {best_classifier_dir / "best_classifier.csv"}')
 
         # Copy the best classifier to the best_classifier_dir
-        best_model_path = shutil.copy(best_classifiers_df.loc[best_classifier_class, 'model_path'], best_classifier_dir)
+        best_model_path = shutil.copy(best_classifier_results['model_path'], best_classifier_dir)
 
         # Save metadata
         metadata = {
@@ -488,10 +491,10 @@ class ScikitModel(Model):
         ]
 
     def train_lstm(self, logger, Xs_train, Ys_train, best_classifiers_metrics):
+        logger.info(f"Training LSTM Classifier with hyperparameters tuning using a fixed train-validation split")
+
         L.seed_everything(self.config.random_state, workers=True)
         classifier_output_dir = self.model_train_dir / 'lstm_classifier'
-
-        Xs_train = convert_features_df_to_tensor_for_rnn(Xs_train)
 
         # Hyperparameter grid
         if not DEBUG_MODE:
@@ -514,16 +517,21 @@ class ScikitModel(Model):
         X_train, X_val, y_train, y_val = train_test_split(Xs_train, Ys_train,
                                                           test_size=self.config.nn_validation_set_size,
                                                           random_state=self.config.random_state)
+        logger.info(f"Split the train data to train and validation sets (validation ratio is {self.config.nn_validation_set_size})")
 
         if self.config.balance_classes:
+            logger.info(f"Resampling train examples using SMOTETomek. Before: {y_train.value_counts()}")
             smote_tomek = SMOTETomek(random_state=self.config.random_state)
             X_train, y_train = smote_tomek.fit_resample(X_train, y_train)
+            logger.info(f"After resampling: {y_train.value_counts()}")
+
+        X_train = convert_features_df_to_tensor_for_rnn(X_train)
+        X_val = convert_features_df_to_tensor_for_rnn(X_val)
 
         # Grid search
         for hidden_size, num_layers, lr, batch_size in zip(hyperparameter_grid['hidden_size'],
                                                            hyperparameter_grid['num_layers'], hyperparameter_grid['lr'],
                                                            hyperparameter_grid['batch_size']):
-            logger.info(f"Training LSTM with hidden_size={hidden_size}, num_layers={num_layers}, lr={lr}, batch_size={batch_size}")
             grid_combination_dir = classifier_output_dir / f'hidden_size_{hidden_size}_num_layers_{num_layers}_lr_{lr}_batch_size_{batch_size}'
             grid_combination_dir.mkdir(exist_ok=True, parents=True)
 
@@ -562,7 +570,8 @@ class ScikitModel(Model):
             val_f1 = f1_score(y_val, y_val_pred)
             val_auprc = average_precision_score(y_val, y_val_pred_probs)
 
-            logger.info(f"Train MCC: {train_mcc}, Train F1: {train_f1}, Train AUPRC: {train_auprc}, "
+            logger.info(f"Trained LSTM with hidden_size={hidden_size}, num_layers={num_layers}, lr={lr}, "
+                        f"batch_size={batch_size}. Train MCC: {train_mcc}, Train F1: {train_f1}, Train AUPRC: {train_auprc}, "
                         f"Val MCC: {val_mcc}, Val F1: {val_f1}, Val AUPRC: {val_auprc}")
 
             # The keys of the metrics are like this to match the ones outputted from GridSearchCV
@@ -580,15 +589,7 @@ class ScikitModel(Model):
         best_model_index = results_df[f'mean_test_{self.config.metric}'].idxmax()
         best_model = results_df.loc[best_model_index]
 
-        logger.info(f"Best params: {best_model[['hidden_size', 'num_layers', 'lr', 'batch_size']]}")
-        logger.info(
-            f"Best estimator - Mean MCC on train folds: {best_model['mean_train_mcc']}, "
-            f"Mean AUPRC on train folds: {best_model['mean_train_auprc']}, "
-            f"Mean F1 on train fold: {best_model['mean_train_f1']}, "
-            f"Mean MCC on held-out folds: {best_model['mean_test_mcc']}, "
-            f"Mean AUPRC on held-out folds: {best_model['mean_test_auprc']}, "
-            f"Mean F1 o held-out folds: {best_model['mean_test_f1']}")
-
+        logger.info(f"Best LSTM model:\n{best_model}")
         best_classifiers_metrics['LSTMClassifier'] = [best_model_index, best_model['mean_train_mcc'],
                                             best_model['mean_train_auprc'], best_model['mean_train_f1'],
                                             best_model['mean_test_mcc'], best_model['mean_test_auprc'],
