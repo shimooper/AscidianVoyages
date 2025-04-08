@@ -1,6 +1,7 @@
 import itertools
 import shutil
 from collections import Counter
+from concurrent.futures import as_completed, ProcessPoolExecutor
 
 import joblib
 import pandas as pd
@@ -518,8 +519,6 @@ class ScikitModel(Model):
                 'batch_size': [32]
             }
 
-        all_results = []
-
         X_train, X_val, y_train, y_val = train_test_split(Xs_train, Ys_train,
                                                           test_size=self.config.nn_validation_set_size,
                                                           random_state=self.config.random_state,
@@ -536,61 +535,32 @@ class ScikitModel(Model):
         X_val = convert_features_df_to_tensor_for_rnn(X_val, device)
 
         # Grid search
-        for hidden_size, num_layers, lr, batch_size in itertools.product(hyperparameter_grid['hidden_size'],
-                                                                         hyperparameter_grid['num_layers'],
-                                                                         hyperparameter_grid['lr'],
-                                                                         hyperparameter_grid['batch_size']):
-            grid_combination_dir = classifier_output_dir / f'hidden_size_{hidden_size}_num_layers_{num_layers}_lr_{lr}_batch_size_{batch_size}'
-            grid_combination_dir.mkdir(exist_ok=True, parents=True)
+        all_results = []
 
-            train_dataset = TensorDataset(X_train, torch.tensor(y_train.values, device=device))
-            val_dataset = TensorDataset(X_val, torch.tensor(y_val.values, device=device))
+        if self.config.run_lstm_configurations_in_parallel:
+            with ProcessPoolExecutor(max_workers=self.config.cpus) as executor:
+                futures = []
+                for hidden_size, num_layers, lr, batch_size in itertools.product(hyperparameter_grid['hidden_size'],
+                                                                                 hyperparameter_grid['num_layers'],
+                                                                                 hyperparameter_grid['lr'],
+                                                                                 hyperparameter_grid['batch_size']):
+                    futures.append(executor.submit(self.train_lstm_with_hyperparameters, logger, classifier_output_dir,
+                                                   hidden_size, num_layers, lr, batch_size, X_train, y_train, X_val, y_val,
+                                                   device, self.config.metric, self.config.nn_max_epochs))
 
-            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-            val_loader = DataLoader(val_dataset, batch_size=len(val_dataset), shuffle=False)
-
-            model = LSTMModel(hidden_size=hidden_size, num_layers=num_layers, lr=lr)
-            model.to(device)
-
-            checkpoint_callback = ModelCheckpoint(monitor=f'val_{self.config.metric}', mode='max', save_top_k=1,
-                                                  dirpath=grid_combination_dir / 'checkpoints', filename='best_model-epoch-{epoch}')
-            trainer = L.Trainer(
-                max_epochs=self.config.nn_max_epochs,
-                logger=True,
-                default_root_dir=grid_combination_dir,  # logs directory
-                callbacks=[EarlyStopping(monitor=f'val_loss', patience=10, mode='min'), checkpoint_callback],
-                deterministic=True
-            )
-            trainer.fit(model, train_loader, val_loader)
-
-            best_model_path = checkpoint_callback.best_model_path
-            best_model = LSTMModel.load_from_checkpoint(best_model_path)
-            best_model.to(device)
-            best_model.eval()
-
-            with torch.no_grad():
-                train_loader_for_evaluation = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
-                y_train_pred_probs = torch.cat([best_model(x) for x, _ in train_loader_for_evaluation]).cpu().numpy().flatten()
-                y_train_pred = (y_train_pred_probs > 0.5).astype(int)
-                y_val_pred_probs = torch.cat([best_model(x) for x, _ in val_loader]).cpu().numpy().flatten()
-                y_val_pred = (y_val_pred_probs > 0.5).astype(int)
-
-            train_mcc = matthews_corrcoef(y_train, y_train_pred)
-            train_f1 = f1_score(y_train, y_train_pred)
-            train_auprc = average_precision_score(y_train, y_train_pred_probs)
-            val_mcc = matthews_corrcoef(y_val, y_val_pred)
-            val_f1 = f1_score(y_val, y_val_pred)
-            val_auprc = average_precision_score(y_val, y_val_pred_probs)
-
-            logger.info(f"Trained LSTM with hidden_size={hidden_size}, num_layers={num_layers}, lr={lr}, "
-                        f"batch_size={batch_size}. Train MCC: {train_mcc}, Train F1: {train_f1}, Train AUPRC: {train_auprc}, "
-                        f"Val MCC: {val_mcc}, Val F1: {val_f1}, Val AUPRC: {val_auprc}")
-
-            # The keys of the metrics are like this to match the ones outputted from GridSearchCV
-            all_results.append({'hidden_size': hidden_size, 'num_layers': num_layers, 'lr': lr, 'batch_size': batch_size,
-                                'validation mcc': val_mcc, 'validation f1': val_f1, 'validation auprc': val_auprc,
-                                'train mcc': train_mcc, 'train f1': train_f1, 'train auprc': train_auprc,
-                                'best_model_path': best_model_path})
+                for future in as_completed(futures):
+                    # Append result to the results list
+                    all_results.append(future.result())
+        else:
+            for hidden_size, num_layers, lr, batch_size in itertools.product(hyperparameter_grid['hidden_size'],
+                                                                             hyperparameter_grid['num_layers'],
+                                                                             hyperparameter_grid['lr'],
+                                                                             hyperparameter_grid['batch_size']):
+                result = self.train_lstm_with_hyperparameters(logger, classifier_output_dir,
+                                                              hidden_size, num_layers, lr, batch_size,
+                                                              X_train, y_train, X_val, y_val,
+                                                              device, self.config.metric, self.config.nn_max_epochs)
+                all_results.append(result)
 
         # Save all hyperparameter results to CSV
         results_df = pd.DataFrame(all_results)
@@ -606,6 +576,63 @@ class ScikitModel(Model):
                                             best_model['train auprc'], best_model['train f1'],
                                             best_model['validation mcc'], best_model['validation auprc'],
                                             best_model['validation f1'], best_model['best_model_path']]
+
+    @staticmethod
+    def train_lstm_with_hyperparameters(logger, classifier_output_dir, hidden_size, num_layers, lr, batch_size,
+                                        X_train, y_train, X_val, y_val, device, metric, nn_max_epochs):
+        grid_combination_dir = classifier_output_dir / f'hidden_size_{hidden_size}_num_layers_{num_layers}_lr_{lr}_batch_size_{batch_size}'
+        grid_combination_dir.mkdir(exist_ok=True, parents=True)
+
+        train_dataset = TensorDataset(X_train, torch.tensor(y_train.values, device=device))
+        val_dataset = TensorDataset(X_val, torch.tensor(y_val.values, device=device))
+
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        val_loader = DataLoader(val_dataset, batch_size=len(val_dataset), shuffle=False)
+
+        model = LSTMModel(hidden_size=hidden_size, num_layers=num_layers, lr=lr)
+        model.to(device)
+
+        checkpoint_callback = ModelCheckpoint(monitor=f'val_{metric}', mode='max', save_top_k=1,
+                                              dirpath=grid_combination_dir / 'checkpoints',
+                                              filename='best_model-epoch-{epoch}')
+        trainer = L.Trainer(
+            max_epochs=nn_max_epochs,
+            logger=True,
+            default_root_dir=grid_combination_dir,  # logs directory
+            callbacks=[EarlyStopping(monitor=f'val_loss', patience=10, mode='min'), checkpoint_callback],
+            deterministic=True
+        )
+        trainer.fit(model, train_loader, val_loader)
+
+        best_model_path = checkpoint_callback.best_model_path
+        best_model = LSTMModel.load_from_checkpoint(best_model_path)
+        best_model.to(device)
+        best_model.eval()
+
+        with torch.no_grad():
+            train_loader_for_evaluation = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
+            y_train_pred_probs = torch.cat(
+                [best_model(x) for x, _ in train_loader_for_evaluation]).cpu().numpy().flatten()
+            y_train_pred = (y_train_pred_probs > 0.5).astype(int)
+            y_val_pred_probs = torch.cat([best_model(x) for x, _ in val_loader]).cpu().numpy().flatten()
+            y_val_pred = (y_val_pred_probs > 0.5).astype(int)
+
+        train_mcc = matthews_corrcoef(y_train, y_train_pred)
+        train_f1 = f1_score(y_train, y_train_pred)
+        train_auprc = average_precision_score(y_train, y_train_pred_probs)
+        val_mcc = matthews_corrcoef(y_val, y_val_pred)
+        val_f1 = f1_score(y_val, y_val_pred)
+        val_auprc = average_precision_score(y_val, y_val_pred_probs)
+
+        logger.info(f"Trained LSTM with hidden_size={hidden_size}, num_layers={num_layers}, lr={lr}, "
+                    f"batch_size={batch_size}. Train MCC: {train_mcc}, Train F1: {train_f1}, Train AUPRC: {train_auprc}, "
+                    f"Val MCC: {val_mcc}, Val F1: {val_f1}, Val AUPRC: {val_auprc}")
+
+        results = {'hidden_size': hidden_size, 'num_layers': num_layers, 'lr': lr, 'batch_size': batch_size,
+                   'validation mcc': val_mcc, 'validation f1': val_f1, 'validation auprc': val_auprc,
+                   'train mcc': train_mcc, 'train f1': train_f1, 'train auprc': train_auprc,
+                   'best_model_path': best_model_path}
+        return results
 
 
 class OptunaModel(Model):

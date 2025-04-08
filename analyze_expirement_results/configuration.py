@@ -55,6 +55,7 @@ class Config:
     nn_max_epochs: int = NN_MAX_EPOCHS
     balance_classes: bool = False
     max_classes_ratio: int = 0.25  # Relevant only if balance_classes is True
+    run_lstm_configurations_in_parallel: bool = False
 
     def to_csv(self, path: Path):
         config_df = pd.DataFrame(list(asdict(self).items()), columns=['key', 'value'])
