@@ -303,8 +303,14 @@ class ScikitModel(Model):
                 grid.fit(Xs_train, Ys_train)
                 grid_results = pd.DataFrame.from_dict(grid.cv_results_)
                 grid_results.to_csv(classifier_output_dir / f'{class_name}_grid_results.csv')
+
+                if self.config.balance_classes:
+                    best_estimator = grid.best_estimator_[-1]
+                else:
+                    best_estimator = grid.best_estimator_
+
                 best_estimator_path = classifier_output_dir / f"best_{class_name}.pkl"
-                joblib.dump(grid.best_estimator_, best_estimator_path)
+                joblib.dump(best_estimator, best_estimator_path)
 
                 # Note: grid.best_score_ == grid_results['mean_test_{metric}'][grid.best_index_] (the mean cross-validated score of the best_estimator)
                 logger.info(
@@ -330,13 +336,13 @@ class ScikitModel(Model):
                 if class_name in ['DecisionTreeClassifier', 'RandomForestClassifier', 'GradientBoostingClassifier',
                                   'XGBClassifier']:
                     self.plot_feature_importance(class_name, Xs_train.columns,
-                                                 grid.best_estimator_.feature_importances_, classifier_output_dir)
+                                                 best_estimator.feature_importances_, classifier_output_dir)
 
                 if class_name == 'DecisionTreeClassifier' and not DEBUG_MODE:
-                    self.plot_decision_tree(grid.best_estimator_, list(Xs_train.columns), classifier_output_dir)
+                    self.plot_decision_tree(best_estimator, list(Xs_train.columns), classifier_output_dir)
                     if len(Xs_train.columns) >= 2:
                         self.plot_decision_functions_of_features_pairs(Xs_train, Ys_train, grid.best_params_,
-                                                                       grid.best_estimator_.feature_importances_,
+                                                                       best_estimator.feature_importances_,
                                                                        classifier_output_dir)
 
             except Exception as e:
