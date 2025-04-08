@@ -28,6 +28,7 @@ VALIDATION_SET_SIZE = 0.2  # relevant only in case of neural networks
 NUMBER_OF_DAYS_TO_CONSIDER = [1, 2, 3, 4] if not DEBUG_MODE else [4]
 BALANCE_CLASSES_IN_TRAINING = [False, True] if not DEBUG_MODE else [True]
 NN_MAX_EPOCHS = 20 if not DEBUG_MODE else 5
+MAX_CLASS_RATIO = 0.25  # Relevant only if balance_classes is True
 
 METRIC_NAME_TO_SKLEARN_SCORER = {'mcc': make_scorer(matthews_corrcoef), 'f1': 'f1', 'auprc': 'average_precision'}
 
@@ -54,7 +55,7 @@ class Config:
     nn_validation_set_size: float = VALIDATION_SET_SIZE
     nn_max_epochs: int = NN_MAX_EPOCHS
     balance_classes: bool = False
-    max_classes_ratio: int = 0.25  # Relevant only if balance_classes is True
+    max_classes_ratio: int = MAX_CLASS_RATIO  # Relevant only if balance_classes is True
     run_lstm_configurations_in_parallel: bool = False
 
     def to_csv(self, path: Path):

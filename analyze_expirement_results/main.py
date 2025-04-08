@@ -15,7 +15,7 @@ from utils import plot_models_comparison
 
 
 def create_config(flag_combination, configuration_id, cpus, outputs_dir, do_feature_selection, train_with_optuna,
-                  optuna_number_of_trials, run_lstm_configurations_in_parallel):
+                  optuna_number_of_trials):
     include_control_flag, include_suspected_flag, number_of_future_days, stratify_flag, random_state, metric, balance_classes = flag_combination
 
     outputs_dir_path = outputs_dir / f'configuration_{configuration_id}'
@@ -37,7 +37,6 @@ def create_config(flag_combination, configuration_id, cpus, outputs_dir, do_feat
         train_with_optuna=train_with_optuna,
         optuna_number_of_trials=optuna_number_of_trials,
         balance_classes=balance_classes,
-        run_lstm_configurations_in_parallel=run_lstm_configurations_in_parallel,
     )
     config.to_csv(outputs_dir_path / 'config.csv')
 
@@ -73,15 +72,13 @@ def main(outputs_dir, cpus, do_feature_selection, train_with_optuna, optuna_numb
         with ProcessPoolExecutor(max_workers=cpus) as executor:
             for flags_combination in flags_combinations:
                 config = create_config(flags_combination, configuration_id, max(1, cpus // len(flags_combinations)),
-                                       outputs_dir, do_feature_selection, train_with_optuna, optuna_number_of_trials,
-                                       run_configurations_in_parallel)
+                                       outputs_dir, do_feature_selection, train_with_optuna, optuna_number_of_trials)
                 executor.submit(run_analysis_of_one_config, config, processed_df)
                 configuration_id += 1
     else:
         for flags_combination in flags_combinations:
             config = create_config(flags_combination, configuration_id, cpus,
-                                   outputs_dir, do_feature_selection, train_with_optuna, optuna_number_of_trials,
-                                   run_configurations_in_parallel)
+                                   outputs_dir, do_feature_selection, train_with_optuna, optuna_number_of_trials)
             run_analysis_of_one_config(config, processed_df)
             configuration_id += 1
 
