@@ -490,11 +490,6 @@ class ScikitModel(Model):
                 'scale_pos_weight': [1],
             }
 
-        if self.config.balance_classes:
-            for grid in decision_tree_grid, rfc_grid, xgboost_grid:
-                for key in list(grid.keys()):
-                    grid[f'clf__{key}'] = grid.pop(key)
-
         return [
             # (KNeighborsClassifier(), knn_grid),
             # (LogisticRegression(), logistic_regression_grid),
