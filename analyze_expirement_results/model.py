@@ -11,7 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import sklearn
-from sklearn.model_selection import GridSearchCV, StratifiedKFold, cross_val_score
+from sklearn.model_selection import GridSearchCV, StratifiedKFold, cross_val_score, PredefinedSplit
 from sklearn.metrics import matthews_corrcoef, average_precision_score, f1_score
 from sklearn.tree import DecisionTreeClassifier, plot_tree
 from sklearn.inspection import DecisionBoundaryDisplay
@@ -270,6 +270,25 @@ class ScikitModel(Model):
         return rfecv.support_
 
     def fit_on_train_data(self, logger, Xs_train, Ys_train):
+        X_train, X_val, y_train, y_val = train_test_split(Xs_train, Ys_train,
+                                                          test_size=self.config.validation_set_size,
+                                                          random_state=self.config.random_state,
+                                                          stratify=Ys_train)
+        logger.info(f"Split the train data to train and validation sets (validation ratio is {self.config.validation_set_size})")
+
+        if self.config.balance_classes:
+            logger.info(f"Resampling train examples using RandomUnderSampler. Before: {y_train.value_counts()}")
+            rus = RandomUnderSampler(random_state=self.config.random_state, sampling_strategy=self.config.max_classes_ratio)
+            X_train, y_train = rus.fit_resample(X_train, y_train)
+            logger.info(f"After resampling: {y_train.value_counts()}")
+
+        X_trainval = np.concatenate([X_train, X_val])
+        y_trainval = np.concatenate([y_train, y_val])
+
+        # Create test_fold: -1 for train, 0 for validation
+        test_fold = np.array([-1] * len(X_train) + [0] * len(X_val))
+        ps = PredefinedSplit(test_fold)
+
         best_classifiers_metrics = {}
         classifiers = self.create_classifiers_and_param_grids(Ys_train)
         for classifier, param_grid in classifiers:
@@ -277,21 +296,11 @@ class ScikitModel(Model):
             classifier_output_dir = self.model_train_dir / convert_pascal_to_snake_case(class_name)
             classifier_output_dir.mkdir(exist_ok=True, parents=True)
 
-            logger.info(f"Training Classifier {class_name} with hyperparameters tuning using GridSearch and Stratified-KFold CV.")
-
-            if self.config.balance_classes:
-                logger.info(f"Using RandomUnderSampler to balance classes during training (integrated with GridSearchCV.")
-                rus = RandomUnderSampler(random_state=self.config.random_state, sampling_strategy=self.config.max_classes_ratio)
-                estimator = Pipeline([
-                    ('undersample', rus),
-                    ('clf', classifier)
-                ])
-            else:
-                estimator = classifier
-
+            logger.info(f"Training Classifier {class_name} with hyperparameters tuning using GridSearch and Stratified train-validation split.")
             grid = GridSearchCV(
-                estimator=estimator,
+                estimator=classifier,
                 param_grid=param_grid,
+                cv=ps,
                 scoring=METRIC_NAME_TO_SKLEARN_SCORER,
                 refit=self.config.metric,
                 return_train_score=True,
@@ -300,17 +309,11 @@ class ScikitModel(Model):
             )
 
             try:
-                grid.fit(Xs_train, Ys_train)
+                grid.fit(X_trainval, y_trainval)
                 grid_results = pd.DataFrame.from_dict(grid.cv_results_)
                 grid_results.to_csv(classifier_output_dir / f'{class_name}_grid_results.csv')
-
-                if self.config.balance_classes:
-                    best_estimator = grid.best_estimator_[-1]
-                else:
-                    best_estimator = grid.best_estimator_
-
                 best_estimator_path = classifier_output_dir / f"best_{class_name}.pkl"
-                joblib.dump(best_estimator, best_estimator_path)
+                joblib.dump(grid.best_estimator_, best_estimator_path)
 
                 # Note: grid.best_score_ == grid_results['mean_test_{metric}'][grid.best_index_] (the mean cross-validated score of the best_estimator)
                 logger.info(
@@ -336,19 +339,19 @@ class ScikitModel(Model):
                 if class_name in ['DecisionTreeClassifier', 'RandomForestClassifier', 'GradientBoostingClassifier',
                                   'XGBClassifier']:
                     self.plot_feature_importance(class_name, Xs_train.columns,
-                                                 best_estimator.feature_importances_, classifier_output_dir)
+                                                 grid.best_estimator_.feature_importances_, classifier_output_dir)
 
                 if class_name == 'DecisionTreeClassifier' and not DEBUG_MODE:
-                    self.plot_decision_tree(best_estimator, list(Xs_train.columns), classifier_output_dir)
+                    self.plot_decision_tree(grid.best_estimator_, list(Xs_train.columns), classifier_output_dir)
                     if len(Xs_train.columns) >= 2:
                         self.plot_decision_functions_of_features_pairs(Xs_train, Ys_train, grid.best_params_,
-                                                                       best_estimator.feature_importances_,
+                                                                       grid.best_estimator_.feature_importances_,
                                                                        classifier_output_dir)
 
             except Exception as e:
                 logger.error(f"Failed to train classifier {class_name} with error: {e}")
 
-        self.train_lstm(logger, Xs_train, Ys_train, best_classifiers_metrics)
+        self.train_lstm(logger, X_train, X_val, y_train, y_val, best_classifiers_metrics)
 
         best_classifier_dir = self.model_train_dir / 'best_classifier'
         best_classifier_dir.mkdir(exist_ok=True, parents=True)
@@ -502,12 +505,15 @@ class ScikitModel(Model):
             (XGBClassifier(), xgboost_grid)
         ]
 
-    def train_lstm(self, logger, Xs_train, Ys_train, best_classifiers_metrics):
+    def train_lstm(self, logger, X_train, X_val, y_train, y_val, best_classifiers_metrics):
         logger.info(f"Training LSTM Classifier with hyperparameters tuning using a fixed train-validation split")
 
         device = torch.device('cpu')
         L.seed_everything(self.config.random_state, workers=True)
         classifier_output_dir = self.model_train_dir / 'lstm_classifier'
+
+        X_train = convert_features_df_to_tensor_for_rnn(X_train, device)
+        X_val = convert_features_df_to_tensor_for_rnn(X_val, device)
 
         # Hyperparameter grid
         if not DEBUG_MODE:
@@ -524,21 +530,6 @@ class ScikitModel(Model):
                 'lr': [1e-4],
                 'batch_size': [32]
             }
-
-        X_train, X_val, y_train, y_val = train_test_split(Xs_train, Ys_train,
-                                                          test_size=self.config.nn_validation_set_size,
-                                                          random_state=self.config.random_state,
-                                                          stratify=Ys_train)
-        logger.info(f"Split the train data to train and validation sets (validation ratio is {self.config.nn_validation_set_size})")
-
-        if self.config.balance_classes:
-            logger.info(f"Resampling train examples using RandomUnderSampler. Before: {y_train.value_counts()}")
-            rus = RandomUnderSampler(random_state=self.config.random_state, sampling_strategy=self.config.max_classes_ratio)
-            X_train, y_train = rus.fit_resample(X_train, y_train)
-            logger.info(f"After resampling: {y_train.value_counts()}")
-
-        X_train = convert_features_df_to_tensor_for_rnn(X_train, device)
-        X_val = convert_features_df_to_tensor_for_rnn(X_val, device)
 
         # Grid search
         all_results = []
