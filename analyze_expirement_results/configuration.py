@@ -55,7 +55,7 @@ class Config:
     validation_set_size: float = VALIDATION_SET_SIZE
     nn_max_epochs: int = NN_MAX_EPOCHS
     balance_classes: bool = False
-    max_classes_ratio: int = MAX_CLASS_RATIO  # Relevant only if balance_classes is True
+    max_classes_ratio: float = MAX_CLASS_RATIO  # Relevant only if balance_classes is True
     run_lstm_configurations_in_parallel: bool = False
 
     def to_csv(self, path: Path):
