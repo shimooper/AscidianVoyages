@@ -51,10 +51,8 @@ class Model:
         output_dir_path = config.models_dir_path / f'days_to_consider_{number_of_days_to_consider}'
         self.model_data_dir = output_dir_path / 'data'
         self.model_train_dir = output_dir_path / 'train_outputs'
-        self.model_test_dir = output_dir_path / 'test_outputs'
         self.model_data_dir.mkdir(exist_ok=True, parents=True)
         self.model_train_dir.mkdir(exist_ok=True, parents=True)
-        self.model_test_dir.mkdir(exist_ok=True, parents=True)
 
         np.random.seed(self.config.random_state)
 
@@ -194,37 +192,16 @@ class Model:
         plt.savefig(output_dir / 'decision_functions_on_features_pairs_plot.png', dpi=600)
         plt.close()
 
-    def test_on_test_data(self, model_path, Xs_test, Ys_test):
-        logger = setup_logger(self.model_test_dir / 'classifiers_test.log', f'MODEL_{self.model_id}_TEST')
-        device = torch.device('cpu')
-
-        if model_path.endswith('.pkl'):
-            model = joblib.load(model_path)
-            Ys_test_predictions = model.predict_proba(Xs_test)
-            y_pred_probs = Ys_test_predictions[:, 1]
-            y_pred = Ys_test_predictions.argmax(axis=1)
-        elif model_path.endswith('.ckpt'):
-            Xs_test = convert_features_df_to_tensor_for_rnn(Xs_test, device)
-            dataset = TensorDataset(Xs_test, torch.tensor(Ys_test.values, device=device))
-            data_loader = DataLoader(dataset, batch_size=64, shuffle=False)
-            model = LSTMModel.load_from_checkpoint(model_path)
-            model.to(device)
-            model.eval()
-            with torch.no_grad():
-                y_pred_probs = torch.cat([model(x) for x, _ in data_loader]).cpu().numpy().flatten()
-                y_pred = (y_pred_probs > 0.5).astype(int)
-        else:
-            raise ValueError(f"Unknown model file type: {model_path}")
-
+    def test_on_test_data(self, logger, Ys_test, y_pred_probs, y_pred, output_dir):
         mcc_on_test = matthews_corrcoef(Ys_test, y_pred)
         auprc_on_test = average_precision_score(Ys_test, y_pred_probs)
         f1_on_test = f1_score(Ys_test, y_pred)
 
         logger.info(
-            f"Best estimator ({model.__class__}) - MCC on test: {mcc_on_test}, AUPRC on test: {auprc_on_test}, F1 on test: {f1_on_test}")
+            f"Best estimator - MCC on test: {mcc_on_test}, AUPRC on test: {auprc_on_test}, F1 on test: {f1_on_test}")
 
         test_results = pd.DataFrame({'mcc': [mcc_on_test], 'auprc': [auprc_on_test], 'f1': [f1_on_test]})
-        test_results.to_csv(self.model_test_dir / 'best_classifier_test_results.csv', index=False)
+        test_results.to_csv(output_dir / 'best_classifier_test_results.csv', index=False)
 
 
 class ScikitModel(Model):
@@ -243,11 +220,8 @@ class ScikitModel(Model):
             selected_features_mask = [True] * len(Xs_train.columns)
 
         Xs_train_selected = Xs_train.loc[:, selected_features_mask]
-        best_model_path = self.fit_on_train_data(train_logger, Xs_train_selected, Ys_train)
-
-        # Test
         Xs_test_selected = Xs_test.loc[:, selected_features_mask]
-        self.test_on_test_data(best_model_path, Xs_test_selected, Ys_test)
+        self.fit_and_test(train_logger, Xs_train_selected, Ys_train, Xs_test_selected, Ys_test)
 
     def feature_selection_on_train_data(self, logger, Xs_train, Ys_train):
         outputs_dir = self.model_train_dir / 'feature_selection'
@@ -269,7 +243,7 @@ class ScikitModel(Model):
 
         return rfecv.support_
 
-    def fit_on_train_data(self, logger, Xs_train, Ys_train):
+    def fit_and_test(self, logger, Xs_train, Ys_train, Xs_test, Ys_test):
         X_train, X_val, y_train, y_val = train_test_split(Xs_train, Ys_train,
                                                           test_size=self.config.validation_set_size,
                                                           random_state=self.config.random_state,
@@ -320,12 +294,12 @@ class ScikitModel(Model):
                     f"Best params: {grid.best_params_}, Best index: {grid.best_index_}, Best score: {grid.best_score_}")
 
                 logger.info(
-                    f"Best estimator - Mean MCC on train folds: {grid_results['mean_train_mcc'][grid.best_index_]}, "
-                    f"Mean AUPRC on train folds: {grid_results['mean_train_auprc'][grid.best_index_]}, "
-                    f"Mean F1 on train fold: {grid_results['mean_train_f1'][grid.best_index_]}, "
-                    f"Mean MCC on held-out folds: {grid_results['mean_test_mcc'][grid.best_index_]}, "
-                    f"Mean AUPRC on held-out folds: {grid_results['mean_test_auprc'][grid.best_index_]}, "
-                    f"Mean F1 o held-out folds: {grid_results['mean_test_f1'][grid.best_index_]}")
+                    f"Best estimator - MCC on train: {grid_results['mean_train_mcc'][grid.best_index_]}, "
+                    f"AUPRC on train: {grid_results['mean_train_auprc'][grid.best_index_]}, "
+                    f"F1 on train: {grid_results['mean_train_f1'][grid.best_index_]}, "
+                    f"MCC on held-out: {grid_results['mean_test_mcc'][grid.best_index_]}, "
+                    f"AUPRC on held-out: {grid_results['mean_test_auprc'][grid.best_index_]}, "
+                    f"F1 o held-out: {grid_results['mean_test_f1'][grid.best_index_]}")
 
                 best_classifiers_metrics[class_name] = (grid.best_index_,
                                                         grid_results['mean_train_mcc'][grid.best_index_],
@@ -348,10 +322,15 @@ class ScikitModel(Model):
                                                                        grid.best_estimator_.feature_importances_,
                                                                        classifier_output_dir)
 
+                Ys_test_predictions = grid.best_estimator_.predict_proba(Xs_test)
+                y_pred_probs = Ys_test_predictions[:, 1]
+                y_pred = Ys_test_predictions.argmax(axis=1)
+                self.test_on_test_data(logger, Ys_test, y_pred_probs, y_pred, classifier_output_dir)
+
             except Exception as e:
                 logger.error(f"Failed to train classifier {class_name} with error: {e}")
 
-        self.train_lstm(logger, X_train, X_val, y_train, y_val, best_classifiers_metrics)
+        self.train_lstm(logger, X_train, X_val, Xs_test, y_train, y_val, Ys_test, best_classifiers_metrics)
 
         best_classifier_dir = self.model_train_dir / 'best_classifier'
         best_classifier_dir.mkdir(exist_ok=True, parents=True)
@@ -365,16 +344,13 @@ class ScikitModel(Model):
                     f"them to {best_classifier_dir / 'best_classifier_from_each_class.csv'}")
 
         plot_models_comparison(best_classifiers_df[['validation mcc', 'validation auprc', 'validation f1']].reset_index(),
-                               best_classifier_dir, f'Models Comparison - Validation set(s) - {self.number_of_days_to_consider} days')
+                               best_classifier_dir, f'Classifiers Comparison - Validation set - {self.number_of_days_to_consider} days')
 
         best_classifier_class = best_classifiers_df[f'validation {self.config.metric}'].idxmax()
         best_classifier_results = best_classifiers_df.loc[best_classifier_class]
         best_classifier_results.to_csv(best_classifier_dir / 'best_classifier.csv')
         logger.info(f'Best classifier (validation {self.config.metric}): {best_classifier_class}. '
                     f'Saved its metrics to {best_classifier_dir / "best_classifier.csv"}')
-
-        # Copy the best classifier to the best_classifier_dir
-        best_model_path = shutil.copy(best_classifier_results['model_path'], best_classifier_dir)
 
         # Save metadata
         metadata = {
@@ -386,10 +362,8 @@ class ScikitModel(Model):
             'lightning_version': L.__version__,
             'torch_version': torch.__version__,
         }
-        with open(best_classifier_dir / 'model_metadata.json', 'w') as f:
+        with open(self.model_train_dir / 'model_metadata.json', 'w') as f:
             json.dump(metadata, f)
-
-        return best_model_path
 
     def create_classifiers_and_param_grids(self, Ys_train):
         knn_grid = {
@@ -500,7 +474,7 @@ class ScikitModel(Model):
             (XGBClassifier(), xgboost_grid)
         ]
 
-    def train_lstm(self, logger, X_train, X_val, y_train, y_val, best_classifiers_metrics):
+    def train_lstm(self, logger, X_train, X_val, X_test, y_train, y_val, y_test, best_classifiers_metrics):
         logger.info(f"Training LSTM Classifier with hyperparameters tuning using a fixed train-validation split")
 
         device = torch.device('cpu')
@@ -509,6 +483,7 @@ class ScikitModel(Model):
 
         X_train = convert_features_df_to_tensor_for_rnn(X_train, device)
         X_val = convert_features_df_to_tensor_for_rnn(X_val, device)
+        X_test = convert_features_df_to_tensor_for_rnn(X_test, device)
 
         # Hyperparameter grid
         if not DEBUG_MODE:
@@ -568,6 +543,17 @@ class ScikitModel(Model):
                                             best_model['train auprc'], best_model['train f1'],
                                             best_model['validation mcc'], best_model['validation auprc'],
                                             best_model['validation f1'], best_model['best_model_path']]
+
+        # Test best model on test data
+        test_dataset = TensorDataset(X_test, torch.tensor(y_test.values, device=device))
+        test_data_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
+        best_model = LSTMModel.load_from_checkpoint(best_model['best_model_path'])
+        best_model.to(device)
+        best_model.eval()
+        with torch.no_grad():
+            y_pred_probs = torch.cat([best_model(x) for x, _ in test_data_loader]).cpu().numpy().flatten()
+            y_pred = (y_pred_probs > 0.5).astype(int)
+        self.test_on_test_data(logger, y_test, y_pred_probs, y_pred, classifier_output_dir)
 
     @staticmethod
     def train_lstm_with_hyperparameters(logger, classifier_output_dir, hidden_size, num_layers, lr, batch_size,

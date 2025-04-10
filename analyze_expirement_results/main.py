@@ -102,7 +102,7 @@ def aggregate_validation_metrics_of_one_configuration(config: Config):
 
         classifier_comparison_dir = config.models_dir_path / 'classifier_comparison' / classifier_name
         classifier_comparison_dir.mkdir(exist_ok=True, parents=True)
-        plot_models_comparison(days_comparison_df.reset_index(), classifier_comparison_dir, f'Models Comparison - Validation set(s) - {classifier_name}')
+        plot_models_comparison(days_comparison_df.reset_index(), classifier_comparison_dir, f'Models Comparison - Validation set - {classifier_name}')
 
 
 def aggregate_all_configuration_results(outputs_dir: Path):
