@@ -8,7 +8,7 @@ from configuration import DATA_DIR, DATA_PATH, Config
 
 def permanent_preprocess_data():
     outputs_preprocess_dir = DATA_DIR / 'preprocess'
-    data_processed_path = outputs_preprocess_dir / 'Final_Data_Voyages_Processed.csv'
+    data_processed_path = outputs_preprocess_dir / 'Final_Data_Voyages_Processed_30.csv'
 
     if os.path.exists(data_processed_path):
         return pd.read_csv(data_processed_path)
@@ -145,6 +145,8 @@ def remove_suspected_routes_parts(df):
         for col in lived_columns + temperature_columns + salinity_columns:
             if int(col.split()[1]) >= row['Suspected from time point']:
                 df.loc[idx, col] = pd.NA
+
+        df.loc[idx, 'dying_day'] = pd.NA
 
 
 def add_acclimation_days(df):

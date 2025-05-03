@@ -20,15 +20,15 @@ DATA_PATH = DATA_DIR / 'Final_Data_Voyages.xlsx'
 INCLUDE_CONTROL_ROUTES = [True]
 INCLUDE_SUSPECTED_ROUTES_PARTS = [False]
 STRATIFY_TRAIN_TEST_SPLIT = [False]
-RANDOM_STATE = [1, 10, 24, 89, 102, 3, 183]
+RANDOM_STATE = [0, 42, 123, 99, 2025] if not DEBUG_MODE else [0]
 NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH = [0]
-METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS = ['f1'] if not DEBUG_MODE else ['f1']
+METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS = ['f1', 'mcc', 'auprc'] if not DEBUG_MODE else ['f1']
 TEST_SET_SIZE = 0.2
 VALIDATION_SET_SIZE = 0.2
 NUMBER_OF_DAYS_TO_CONSIDER = [1, 2, 3, 4] if not DEBUG_MODE else [4]
 BALANCE_CLASSES_IN_TRAINING = [False, True] if not DEBUG_MODE else [True]
 NN_MAX_EPOCHS = 20 if not DEBUG_MODE else 5
-MAX_CLASS_RATIO = 0.25  # Relevant only if balance_classes is True
+MAX_CLASS_RATIO = 0.25  # Relevant only if BALANCE_CLASSES_IN_TRAINING is True
 
 METRIC_NAME_TO_SKLEARN_SCORER = {'mcc': make_scorer(matthews_corrcoef), 'f1': 'f1', 'auprc': 'average_precision'}
 
