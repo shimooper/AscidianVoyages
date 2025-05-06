@@ -109,7 +109,7 @@ class Model:
         sns.pairplot(full_df, hue='death_label', palette={'Dead': 'red', 'Alive': 'green'})
 
         plt.grid(alpha=0.3)
-        plt.savefig(self.model_data_dir / "scatter_plot.png", dpi=300, bbox_inches='tight')
+        plt.savefig(self.model_data_dir / "scatter_plot.png", dpi=600, bbox_inches='tight')
         plt.close()
 
     def run_analysis(self):
@@ -404,9 +404,9 @@ class ScikitModel(Model):
 
         if not DEBUG_MODE:
             rfc_grid = {
-                'n_estimators': [5, 20, 100],
-                'max_depth': [None, 3, 5, 10],
-                'min_samples_split': [2, 5, 10],
+                'n_estimators': [5, 10],
+                'max_depth': [3, 5],
+                'min_samples_split': [2, 10],
                 'min_samples_leaf': [1, 2, 5],
                 'random_state': [self.config.random_state],
                 'class_weight': ['balanced', None],
@@ -425,7 +425,7 @@ class ScikitModel(Model):
 
         if not DEBUG_MODE:
             decision_tree_grid = {
-                'max_depth': [None, 3, 5, 10],
+                'max_depth': [2, 3],
                 'min_samples_split': [2, 5, 10],
                 'min_samples_leaf': [1, 2, 5],
                 'random_state': [self.config.random_state],
@@ -443,9 +443,9 @@ class ScikitModel(Model):
         if not DEBUG_MODE:
             Ys_trains_classes_counts = Counter(Ys_train)
             xgboost_grid = {
-                'learning_rate': [0.01, 0.05, 0.1],
-                'n_estimators': [10, 50, 100],
-                'max_depth': [3, 5, 10],
+                'learning_rate': [0.01, 0.1],
+                'n_estimators': [10, 50],
+                'max_depth': [3, 5],
                 'booster': ['dart'],
                 'n_jobs': [1],
                 'random_state': [self.config.random_state],

@@ -1,7 +1,15 @@
 from pathlib import Path
 import pandas as pd
-import argparse
 import re
+
+PROJECT_ROOT_DIR = Path(__file__).resolve().parent.parent
+
+ACTUAL_EXPERIMENT_DATA = PROJECT_ROOT_DIR / 'outputs' / 'configuration_0' / 'data'
+ACTUAL_EXPERIMENT_TRAIN_DATA = ACTUAL_EXPERIMENT_DATA / 'train.csv'
+ACTUAL_EXPERIMENT_TEST_DATA = ACTUAL_EXPERIMENT_DATA / 'test.csv'
+
+PLANNED_EXPERIMENT_DATA = Path('planned_routes') / 'all_sampled_routes.csv'
+OUTPUT_DIR = Path('full_routes')
 
 
 def find_first_nan_day(row: pd.Series):
@@ -49,13 +57,5 @@ def prepare_data(actual_experiment_data, planned_experiment_data, output_dir):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Prepare data for scoring routes')
-    parser.add_argument('--actual_experiment_data', type=Path,
-                        help='Path to the actual experiment data', default=Path('actual_routes') / 'test.csv')
-    parser.add_argument('--planned_experiment_data', type=Path,
-                        help='Path to the planned experiment data', default=Path('planned_routes') / 'all_sampled_routes.csv')
-    parser.add_argument('--output_dir', type=Path,
-                        help='Directory to save the prepared data', default=Path('full_routes'))
-    args = parser.parse_args()
-
-    prepare_data(args.actual_experiment_data, args.planned_experiment_data, args.output_dir)
+    prepare_data(ACTUAL_EXPERIMENT_TRAIN_DATA, PLANNED_EXPERIMENT_DATA, OUTPUT_DIR)
+    prepare_data(ACTUAL_EXPERIMENT_TEST_DATA, PLANNED_EXPERIMENT_DATA, OUTPUT_DIR)

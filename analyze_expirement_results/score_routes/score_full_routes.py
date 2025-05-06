@@ -12,6 +12,9 @@ from analyze_expirement_results.utils import DAYS_DESCRIPTIONS, convert_columns_
 from analyze_expirement_results.model_lstm import LSTMModel
 
 NUMBER_OF_DAYS_TO_CONSIDER = 4
+MODELS_PATH = PROJECT_ROOT_DIR / 'analyze_expirement_results' / 'outputs' / 'configuration_0' / 'models' / 'days_to_consider_4' / 'train_outputs'
+RANDOM_FOREST_MODEL_PATH = MODELS_PATH / 'random_forest_classifier' / 'best_RandomForestClassifier.pkl'
+LSTM_MODEL_PATH = MODELS_PATH / 'lstm_classifier' / 'hidden_size_32_num_layers_2_lr_0.001_batch_size_16' / 'checkpoints' / 'best_model-epoch-epoch=17.ckpt'
 
 
 def calc_aggregated_routes_score(routes_df, model_path):
@@ -100,9 +103,7 @@ if __name__ == "__main__":
                         help='Path to the experiment data', default=Path('full_routes') / 'actual_routes_augmented_train.csv')
     parser.add_argument('--routes_test_path', type=Path,
                         help='Path to the experiment data', default=Path('full_routes') / 'actual_routes_augmented_test.csv')
-    # parser.add_argument('--model_path', type=Path, default=Path('actual_routes') / 'best_model-epoch-epoch=13.ckpt')
-    parser.add_argument('--model_path', type=Path, default=Path('actual_routes') / 'best_RandomForestClassifier.pkl')
     parser.add_argument('--output_dir', type=Path, default=Path('full_routes_aggregated_scores'),)
     args = parser.parse_args()
 
-    score_routes(args.routes_train_path, args.routes_test_path, args.model_path, args.output_dir)
+    score_routes(args.routes_train_path, args.routes_test_path, LSTM_MODEL_PATH, args.output_dir)

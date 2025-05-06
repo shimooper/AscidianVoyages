@@ -11,7 +11,10 @@ import matplotlib.pyplot as plt
 from analyze_expirement_results.utils import setup_logger
 from analyze_expirement_results.configuration import Config
 
-DEBUG = True
+PROJECT_ROOT_DIR = Path(__file__).resolve().parent.parent
+CONFIG_PATH = PROJECT_ROOT_DIR / 'outputs' / 'configuration_0' / 'config.csv'
+
+DEBUG = False
 CLASSIFIERS = lambda rs: [LogisticRegression(random_state=rs), DecisionTreeClassifier(random_state=rs)] if not DEBUG else [LogisticRegression(random_state=rs)]
 AGGREGATION_TYPES = ['min', 'max', 'mean', 'multiply'] if not DEBUG else ['multiply']
 
@@ -49,6 +52,7 @@ def run_one_config(routes_train_path, routes_test_path, aggregation_type, route_
     plt.ylabel("Value")
     plt.legend(title='Dataset')
     plt.savefig(output_dir / 'routes_risk_classified.png', dpi=600, bbox_inches='tight')
+    plt.close()
 
     # Write to file routes scores
     all_routes_df = pd.concat([train_df, test_df], ignore_index=True)
@@ -66,7 +70,7 @@ def run_one_config(routes_train_path, routes_test_path, aggregation_type, route_
 
 def main(routes_train_path, routes_test_path, config_path, output_dir):
     config = Config.from_csv(config_path)
-    for classifier in CLASSIFIERS(config.ranfom_state):
+    for classifier in CLASSIFIERS(config.random_state):
         for aggregation_type in AGGREGATION_TYPES:
             config_output_dir = output_dir / f'{classifier.__class__.__name__}_{aggregation_type}'
             config_output_dir.mkdir(parents=True, exist_ok=True)
@@ -79,9 +83,7 @@ if __name__ == "__main__":
                         default=Path('full_routes_aggregated_scores') / 'routes_train_agg.csv')
     parser.add_argument('--routes_test_path', type=Path,
                         default=Path('full_routes_aggregated_scores') / 'routes_test_agg.csv')
-    parser.add_argument('--config_path', type=Path,
-                        default=Path('actuail_routes') / 'config.csv')
     parser.add_argument('--output_dir', type=Path, default=Path('full_routes_risk_score'))
     args = parser.parse_args()
 
-    main(args.routes_train_path, args.routes_test_path, args.config_path, args.output_dir)
+    main(args.routes_train_path, args.routes_test_path, CONFIG_PATH, args.output_dir)

@@ -33,7 +33,7 @@ def plot_timeline(routes_df, lived_columns, condition_columns, condition_full_na
     ax.legend(unique.values(), unique.keys(), loc='center right')
     ax.grid(True)
 
-    fig.savefig(output_dir / f'routes_timeline_{condition_full_name.lower()}', dpi=300)
+    fig.savefig(output_dir / f'routes_timeline_{condition_full_name.lower()}', dpi=600)
     plt.close()
 
 

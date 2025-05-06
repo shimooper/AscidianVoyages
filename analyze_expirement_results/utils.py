@@ -158,7 +158,7 @@ def plot_models_comparison(results_df, outputs_dir: Path, title):
     plt.xlabel('Metric')
     plt.legend(title='Model', bbox_to_anchor=(1.05, 0.5), loc='center left', borderaxespad=0.)
     plt.tight_layout()
-    plt.savefig(outputs_dir / 'all_models_comparison.png', dpi=300)
+    plt.savefig(outputs_dir / 'all_models_comparison.png', dpi=600)
     plt.close()
 
     results_df.set_index('model_name', inplace=True)
