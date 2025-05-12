@@ -24,13 +24,14 @@ def plot_timeline(routes_df, lived_columns, condition_columns, condition_full_na
         ax.scatter(alive_days, alive_conditions, color='green', alpha=0.5, label='Alive')
         ax.scatter(dead_days, dead_conditions, color='red', alpha=0.5, label='Dead')
 
-    ax.set_title(f'Timeline of the Effect of {condition_full_name} on Ascidians Survival')
-    ax.set_xlabel('Day')
-    ax.set_ylabel(y_axis_label)
+    ax.set_title(f'Timeline of the effect of {condition_full_name} on ascidian survival', fontsize=16)
+    ax.set_xlabel('Day', fontsize=14)
+    ax.set_ylabel(y_axis_label, fontsize=14)
+    ax.tick_params(axis='both', labelsize=12)
 
     handles, labels = ax.get_legend_handles_labels()
     unique = dict(zip(labels, handles))
-    ax.legend(unique.values(), unique.keys(), loc='center right')
+    ax.legend(unique.values(), unique.keys(), loc='center right', fontsize=13)
     ax.grid(True)
 
     fig.savefig(output_dir / f'routes_timeline_{condition_full_name.lower()}', dpi=600)
@@ -45,8 +46,8 @@ def plot_timelines(config):
     visualizations_dir = config.outputs_dir_path / 'routes_visualizations'
     os.makedirs(visualizations_dir, exist_ok=True)
 
-    plot_timeline(df, lived_columns, temperature_columns, 'Temperature', 'Temperature (celsius)', visualizations_dir)
-    plot_timeline(df, lived_columns, salinity_columns, 'Salinity', 'Salinity (ppt)', visualizations_dir)
+    plot_timeline(df, lived_columns, temperature_columns, 'temperature', 'Temperature (celsius)', visualizations_dir)
+    plot_timeline(df, lived_columns, salinity_columns, 'salinity', 'Salinity (ppt)', visualizations_dir)
 
     routes_summer_df = df[df['Season'] == 'summer']
     plot_timeline(routes_summer_df, lived_columns, temperature_columns, 'Temperature in Summer',

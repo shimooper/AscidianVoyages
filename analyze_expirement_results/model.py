@@ -1,5 +1,4 @@
 import itertools
-import shutil
 from collections import Counter
 from concurrent.futures import as_completed, ProcessPoolExecutor
 
@@ -91,7 +90,7 @@ class Model:
         model_test_df.to_csv(self.model_data_dir / 'test.csv', index=False)
 
         if not DEBUG_MODE:
-            self.plot_feature_pairs(model_train_df, model_test_df)
+            self.plot_univariate_features_with_respect_to_label(model_train_df, model_test_df)
 
         Xs_train = model_train_df.drop(columns=['death'])
         Ys_train = model_train_df['death']
@@ -100,15 +99,37 @@ class Model:
 
         return Xs_train, Ys_train, Xs_test, Ys_test
 
-    def plot_feature_pairs(self, train_df, test_df):
+    def plot_univariate_features_with_respect_to_label(self, train_df, test_df):
         full_df = pd.concat([train_df, test_df], axis=0)
 
         full_df['death_label'] = full_df['death'].map({1: 'Dead', 0: 'Alive'}).astype('category')
         full_df.drop(columns=['death'], inplace=True)
 
-        sns.pairplot(full_df, hue='death_label', palette={'Dead': 'red', 'Alive': 'green'})
+        temp_cols = [col for col in full_df.columns if 'temp' in col.lower()]
+        salinity_cols = [col for col in full_df.columns if 'salinity' in col.lower()]
 
-        plt.grid(alpha=0.3)
+        df_temp = full_df[temp_cols + ['death_label']].melt(id_vars='death_label', var_name='feature',
+                                                            value_name='value')
+        df_salinity = full_df[salinity_cols + ['death_label']].melt(id_vars='death_label', var_name='feature',
+                                                                    value_name='value')
+
+        fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+        sns.stripplot(data=df_temp, x='feature', y='value', hue='death_label', jitter=True, alpha=0.7, ax=axes[0],
+                      legend=False)
+        axes[0].set_ylabel("Temperature (celsius)", fontsize=12)
+        axes[0].tick_params(axis='x', rotation=45)
+        axes[0].set_xlabel(None)
+
+        sns.stripplot(data=df_salinity, x='feature', y='value', hue='death_label', jitter=True, alpha=0.7, ax=axes[1])
+        axes[1].yaxis.set_label_position("right")
+        axes[1].yaxis.tick_right()
+        axes[1].set_ylabel("Salinity (ppt)", fontsize=12)
+        axes[1].tick_params(axis='x', rotation=45)
+        axes[1].set_xlabel(None)
+        axes[1].legend(title=None)
+
+        fig.suptitle("Feature distributions colored by label", fontsize=16)
         plt.savefig(self.model_data_dir / "scatter_plot.png", dpi=600, bbox_inches='tight')
         plt.close()
 
@@ -343,8 +364,9 @@ class ScikitModel(Model):
         logger.info(f"Aggregated the best classifiers from each classifier (after hyper-parameter tuning), and saved "
                     f"them to {best_classifier_dir / 'best_classifier_from_each_class.csv'}")
 
-        plot_models_comparison(best_classifiers_df[['validation mcc', 'validation auprc', 'validation f1']].reset_index(),
-                               best_classifier_dir, f'Classifiers Comparison - Validation set - {self.number_of_days_to_consider} days')
+        plot_models_comparison(best_classifiers_df[['validation f1', 'validation auprc', 'validation mcc']].reset_index()
+                               .rename(columns={'validation f1': 'F1', 'validation auprc': 'AUPRC', 'validation mcc': 'MCC'}),
+                               best_classifier_dir, f'Classifiers comparison - validation set - {self.number_of_days_to_consider} days')
 
         best_classifier_class = best_classifiers_df[f'validation {self.config.metric}'].idxmax()
         best_classifier_results = best_classifiers_df.loc[best_classifier_class]
