@@ -4,6 +4,7 @@ import joblib
 import argparse
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.metrics import matthews_corrcoef, average_precision_score, f1_score
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -14,14 +15,24 @@ from analyze_expirement_results.configuration import Config
 PROJECT_ROOT_DIR = Path(__file__).resolve().parent.parent
 CONFIG_PATH = PROJECT_ROOT_DIR / 'outputs' / 'configuration_0' / 'config.csv'
 
-DEBUG = False
-CLASSIFIERS = lambda rs: [LogisticRegression(random_state=rs), DecisionTreeClassifier(random_state=rs)] if not DEBUG else [LogisticRegression(random_state=rs)]
+DEBUG = True
+CLASSIFIERS = lambda rs: [('calibrated_sigmoid_lr', CalibratedClassifierCV(estimator=LogisticRegression(random_state=rs), method='sigmoid')),
+                          ('calibrated_sigmoid_isotonic', CalibratedClassifierCV(estimator=LogisticRegression(random_state=rs), method='isotonic')),
+                          ('lr', LogisticRegression(random_state=rs))]
 AGGREGATION_TYPES = ['min', 'max', 'mean', 'multiply'] if not DEBUG else ['multiply']
+
+
+def add_death_columns(routes_df):
+    for agg_type in AGGREGATION_TYPES:
+        routes_df[f'{agg_type}_death'] = 1 - routes_df[agg_type]
 
 
 def run_one_config(routes_train_path, routes_test_path, aggregation_type, route_classifier, output_dir):
     train_df = pd.read_csv(routes_train_path)
     test_df = pd.read_csv(routes_test_path)
+    add_death_columns(train_df)
+    add_death_columns(test_df)
+    aggregation_type = f'{aggregation_type}_death'
 
     # Use the aggregated score to fit a classification model
     route_classifier.fit(train_df[[aggregation_type]], train_df['death'])
@@ -42,7 +53,7 @@ def run_one_config(routes_train_path, routes_test_path, aggregation_type, route_
         all_metrics.append(metrics)
 
     metrics_df = pd.DataFrame(all_metrics)
-    metrics_df.to_csv(output_dir / 'routes_risk_results.csv', index=False)
+    metrics_df.to_csv(output_dir / 'routes_risk_classified.csv', index=False)
 
     # Plot
     df_melted = metrics_df.melt(id_vars='split', var_name='metric', value_name='value')
@@ -70,9 +81,9 @@ def run_one_config(routes_train_path, routes_test_path, aggregation_type, route_
 
 def main(routes_train_path, routes_test_path, config_path, output_dir):
     config = Config.from_csv(config_path)
-    for classifier in CLASSIFIERS(config.random_state):
+    for classifier_name, classifier in CLASSIFIERS(config.random_state):
         for aggregation_type in AGGREGATION_TYPES:
-            config_output_dir = output_dir / f'{classifier.__class__.__name__}_{aggregation_type}'
+            config_output_dir = output_dir / f'{classifier_name}_{aggregation_type}'
             config_output_dir.mkdir(parents=True, exist_ok=True)
             run_one_config(routes_train_path, routes_test_path, aggregation_type, classifier, config_output_dir)
 

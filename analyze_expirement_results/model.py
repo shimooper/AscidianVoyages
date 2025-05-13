@@ -156,7 +156,7 @@ class Model:
             class_names=["Alive", "Death"],  # Class names
             filled=True,  # Color nodes by class
             rounded=True,  # Rounded corners
-            fontsize=10  # Font size
+            fontsize=14  # Font size
         )
         plt.savefig(output_dir / 'DecisionTreeClassifier_plot.png', dpi=600)
         plt.close()
