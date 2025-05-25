@@ -24,10 +24,10 @@ def plot_timeline(routes_df, lived_columns, condition_columns, condition_full_na
         ax.scatter(alive_days, alive_conditions, color='green', alpha=0.5, label='Alive')
         ax.scatter(dead_days, dead_conditions, color='red', alpha=0.5, label='Dead')
 
-    ax.set_title(f'Timeline of the effect of {condition_full_name} on ascidian survival', fontsize=16)
-    ax.set_xlabel('Day', fontsize=14)
-    ax.set_ylabel(y_axis_label, fontsize=14)
-    ax.tick_params(axis='both', labelsize=12)
+    ax.set_title(f'Timeline of the effect of {condition_full_name} on ascidian survival', fontsize=20)
+    ax.set_xlabel('Day', fontsize=18)
+    ax.set_ylabel(y_axis_label, fontsize=18)
+    ax.tick_params(axis='both', labelsize=16)
 
     handles, labels = ax.get_legend_handles_labels()
     unique = dict(zip(labels, handles))

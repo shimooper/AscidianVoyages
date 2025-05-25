@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed, ProcessPoolExec
 from configuration import SCRIPT_DIR, STRATIFY_TRAIN_TEST_SPLIT, RANDOM_STATE, METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS, \
     INCLUDE_SUSPECTED_ROUTES_PARTS, INCLUDE_CONTROL_ROUTES, NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH, Config, str_to_bool, \
     DEFAULT_OPTUNA_NUMBER_OF_TRIALS, DEBUG_MODE, BALANCE_CLASSES_IN_TRAINING, NUMBER_OF_DAYS_TO_CONSIDER
-from preprocess import permanent_preprocess_data, preprocess_data_by_config
+from preprocess import get_preprocessed_data, preprocess_data_by_config
 from routes_visualization import plot_timelines
 from model import ScikitModel, OptunaModel
 from utils import plot_models_comparison
@@ -43,8 +43,10 @@ def create_config(flag_combination, configuration_id, cpus, outputs_dir, do_feat
     return config
 
 
-def run_analysis_of_one_config(config: Config, processed_df):
+def run_analysis_of_one_config(config: Config):
     config.data_dir_path.mkdir(exist_ok=True, parents=True)
+
+    processed_df = get_preprocessed_data()
     preprocess_data_by_config(config, processed_df)
 
     if not DEBUG_MODE:
@@ -61,8 +63,6 @@ def run_analysis_of_one_config(config: Config, processed_df):
 
 
 def main(outputs_dir, cpus, do_feature_selection, train_with_optuna, optuna_number_of_trials, run_configurations_in_parallel):
-    processed_df = permanent_preprocess_data()
-
     flags_combinations = list(itertools.product(
         INCLUDE_CONTROL_ROUTES, INCLUDE_SUSPECTED_ROUTES_PARTS, NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH,
         STRATIFY_TRAIN_TEST_SPLIT, RANDOM_STATE, METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS, BALANCE_CLASSES_IN_TRAINING))
@@ -73,13 +73,13 @@ def main(outputs_dir, cpus, do_feature_selection, train_with_optuna, optuna_numb
             for flags_combination in flags_combinations:
                 config = create_config(flags_combination, configuration_id, max(1, cpus // len(flags_combinations)),
                                        outputs_dir, do_feature_selection, train_with_optuna, optuna_number_of_trials)
-                executor.submit(run_analysis_of_one_config, config, processed_df)
+                executor.submit(run_analysis_of_one_config, config)
                 configuration_id += 1
     else:
         for flags_combination in flags_combinations:
             config = create_config(flags_combination, configuration_id, cpus,
                                    outputs_dir, do_feature_selection, train_with_optuna, optuna_number_of_trials)
-            run_analysis_of_one_config(config, processed_df)
+            run_analysis_of_one_config(config)
             configuration_id += 1
 
     print('All configurations have been processed.')

@@ -6,7 +6,7 @@ from utils import variable_equals_value, setup_logger, get_column_groups_sorted
 from configuration import DATA_DIR, DATA_PATH, Config
 
 
-def permanent_preprocess_data():
+def get_preprocessed_data():
     outputs_preprocess_dir = DATA_DIR / 'preprocess'
     data_processed_path = outputs_preprocess_dir / 'Final_Data_Voyages_Processed_30.csv'
 
