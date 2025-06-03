@@ -83,7 +83,6 @@ def main(outputs_dir, cpus, do_feature_selection, train_with_optuna, optuna_numb
             configuration_id += 1
 
     print('All configurations have been processed.')
-    # aggregate_all_configuration_results(outputs_dir)
 
 
 def aggregate_validation_metrics_of_one_configuration(config: Config):
@@ -110,34 +109,9 @@ def aggregate_validation_metrics_of_one_configuration(config: Config):
         plot_models_comparison(days_comparison_df.reset_index(), classifier_comparison_dir, f'Models comparison - validation set - {classifier_name}')
 
 
-def aggregate_all_configuration_results(outputs_dir: Path):
-    all_config_best_results = []
-
-    for config_output_dir in outputs_dir.iterdir():
-        if not config_output_dir.is_dir():
-            continue
-
-        config = Config.from_csv(config_output_dir / 'config.csv')
-        optimized_metric = config.metric
-
-        models_results = pd.read_csv(config_output_dir / 'all_models_comparison.csv', index_col='model_name')
-        best_model_name = models_results.loc['best_model', optimized_metric]
-        best_model_metrics = models_results.loc[best_model_name]
-        best_model_metrics['model_name'] = f"configId_{config.configuration_id}_{best_model_name}"
-        all_config_best_results.append(best_model_metrics)
-
-    all_config_best_results_df = pd.DataFrame(all_config_best_results)
-    all_config_best_results_df.reset_index(inplace=True, drop=True)
-    all_config_best_results_df['mcc'] = pd.to_numeric(all_config_best_results_df['mcc'])
-    all_config_best_results_df['f1'] = pd.to_numeric(all_config_best_results_df['f1'])
-    all_config_best_results_df['auprc'] = pd.to_numeric(all_config_best_results_df['auprc'])
-
-    plot_models_comparison(all_config_best_results_df, outputs_dir)
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run the analysis of the experiment results')
-    parser.add_argument('--outputs_dir_name', type=str, default='outputs', help='outputs dir name')
+    parser.add_argument('--outputs_dir_name', type=str, default='outputs_test_local', help='outputs dir name')
     parser.add_argument('--cpus', type=int, default=1, help='Number of CPUs to use')
     parser.add_argument('--do_feature_selection', type=str_to_bool, default=False)
     parser.add_argument('--train_with_optuna', type=str_to_bool, default=False)

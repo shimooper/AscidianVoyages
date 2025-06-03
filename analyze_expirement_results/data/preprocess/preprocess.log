@@ -1,1 +1,11 @@
-2024-12-14 16:20:25,058 - PREPROCESS - INFO - There are 140 routes in the dataset. 88 of them ended with death, and 52 did not. Preprocessed data saved to C:\repos\GoogleShips\analyze_expirement_results\data\preprocess\Final_Data_Voyages_Processed.csv
+2025-06-03 16:13:08,652 - PREPROCESS - INFO - Loaded data from C:\repos\GoogleShips\analyze_expirement_results\data\Final_Data_Voyages.xlsx.
+2025-06-03 16:13:14,466 - PREPROCESS - INFO - Dropped columns: ['Temp 31', 'Temp 32', 'Temp 33', 'Temp 34', 'Temp 35', 'Temp 36', 'Temp 37', 'Temp 38', 'Temp 39', 'Temp 40', 'Temp 41', 'Temp 42', 'Salinity 31', 'Salinity 32', 'Salinity 33', 'Salinity 34', 'Salinity 35', 'Salinity 36', 'Salinity 37', 'Salinity 38', 'Salinity 39', 'Salinity 40', 'Salinity 41', 'Salinity 42', 'Lived 31', 'Lived 32', 'Lived 33', 'Lived 34', 'Lived 35', 'Lived 36', 'Lived 37', 'Lived 38', 'Lived 39', 'Lived 40', 'Lived 41', 'Lived 42'].
+2025-06-03 16:13:28,934 - PREPROCESS - INFO - Replaced all backslashes with NaN values.
+2025-06-03 16:13:34,177 - PREPROCESS - INFO - Converted Temp, Salinity, Lived columns to integers.
+2025-06-03 16:13:34,253 - PREPROCESS - INFO - Replaced 1 with 0 and 0 with 1 in Lived columns.
+2025-06-03 16:13:37,795 - PREPROCESS - INFO - Added dying_day column.
+2025-06-03 16:13:37,800 - PREPROCESS - INFO - Added acclimation days columns.
+2025-06-03 16:13:37,844 - PREPROCESS - INFO - Preprocessed data saved to C:\repos\GoogleShips\analyze_expirement_results\data\preprocess\Final_Data_Voyages_Processed_30.csv
+There are 140 routes in the dataset. 86 of them ended with death, and 54 did not.
+61 routes are in winter season, 36 of them ended with death, and 25 did not.
+79 routes are in summer season, 50 of them ended with death, and 29 did not.

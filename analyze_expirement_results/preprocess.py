@@ -19,12 +19,17 @@ def get_preprocessed_data():
     df = pd.read_excel(DATA_PATH, sheet_name='final_data')
     logger.info(f"Loaded data from {DATA_PATH}.")
 
+    cols_to_drop = [col for col in df.columns if (('Lived' in col or 'Temp' in col or 'Salinity' in col)
+                                                  and int(col.split()[1]) > 30)]
+    df = df.drop(columns=cols_to_drop)
+    logger.info(f"Dropped columns: {cols_to_drop}.")
+
     df.replace("\\", pd.NA, inplace=True)
     logger.info(f"Replaced all backslashes with NaN values.")
 
     # Convert Temp, Salinity, Lived columns to integers
     lived_columns, temperature_columns, salinity_columns = get_column_groups_sorted(df)
-    for col in lived_columns + temperature_columns + salinity_columns + ['Suspected from time point']:
+    for col in lived_columns + temperature_columns + salinity_columns:
         df[col] = pd.to_numeric(df[col], errors='raise').astype("Int64")
     logger.info(f"Converted Temp, Salinity, Lived columns to integers.")
 
@@ -57,8 +62,6 @@ def preprocess_data_by_config(config: Config, routes_df):
     ship_names_and_seasons_no_control = ship_names_and_seasons[ship_names_and_seasons['Name'] != 'CONTROL']
 
     if config.stratify:
-        # routes_df['stratify_group'] = routes_df['Season'] + '_' + routes_df['dying_day'].notna().astype(int).astype(str)
-        # stratify_column = routes_df['stratify_group']
         stratify_column = routes_df['Season']
     else:
         stratify_column = None
@@ -132,21 +135,31 @@ def add_dying_day(df, lived_columns, temperature_columns, salinity_columns):
                                      f'{lived_col}, {temp_col}, {salinity_col}')
 
 
+def dying_day_is_suspected(row_dying_day, control_deaths):
+    if pd.isna(row_dying_day):
+        return False
+
+    # Check if the dying day is within 2 days of any control death
+    return any(int(row_dying_day) in range(int(control_death) - 2, int(control_death) + 3) for control_death in control_deaths)
+
+
 def remove_suspected_routes_parts(df):
     lived_columns, temperature_columns, salinity_columns = get_column_groups_sorted(df)
 
+    suspected_control_routes_df = df[(df['Name'] == 'CONTROL') & (df['dying_day'].notna())]
+    month_to_control_deaths = suspected_control_routes_df.groupby('Sampling Date')['dying_day'].apply(list).to_dict()
+
     for idx, row in df.iterrows():
-        if pd.isna(row['Suspected from time point']):
+        control_deaths = month_to_control_deaths.get(row['Sampling Date'], [])
+        if not control_deaths:
             continue
 
-        if row['Suspected from time point'] != row['dying_day']:
-            raise ValueError(f"Row {idx} has different values in 'Suspected from time point' and 'dying_day' columns.")
+        if dying_day_is_suspected(row['dying_day'], control_deaths):
+            for col in lived_columns + temperature_columns + salinity_columns:
+                if int(col.split()[1]) >= row['dying_day']:
+                    df.loc[idx, col] = pd.NA
 
-        for col in lived_columns + temperature_columns + salinity_columns:
-            if int(col.split()[1]) >= row['Suspected from time point']:
-                df.loc[idx, col] = pd.NA
-
-        df.loc[idx, 'dying_day'] = pd.NA
+            df.loc[idx, 'dying_day'] = pd.NA
 
 
 def add_acclimation_days(df):
