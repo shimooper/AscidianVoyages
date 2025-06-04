@@ -1,4 +1,4 @@
-import os
+import re
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
@@ -10,10 +10,10 @@ def get_preprocessed_data():
     outputs_preprocess_dir = DATA_DIR / 'preprocess'
     data_processed_path = outputs_preprocess_dir / 'Final_Data_Voyages_Processed_30.csv'
 
-    if os.path.exists(data_processed_path):
+    if data_processed_path.exists():
         return pd.read_csv(data_processed_path)
 
-    os.makedirs(outputs_preprocess_dir, exist_ok=True)
+    outputs_preprocess_dir.mkdir(parents=True, exist_ok=True)
     logger = setup_logger(outputs_preprocess_dir / 'preprocess.log', 'PREPROCESS')
 
     df = pd.read_excel(DATA_PATH, sheet_name='final_data')
@@ -39,6 +39,8 @@ def get_preprocessed_data():
     logger.info(f"Added dying_day column.")
     add_acclimation_days(df)
     logger.info(f"Added acclimation days columns.")
+    df.columns = [shift_column_name(col) for col in df.columns]
+    logger.info(f"Shifted column names to start with day 0")
 
     df.to_csv(data_processed_path, index=False)
     logger.info(f"Preprocessed data saved to {data_processed_path}\n{routes_statistics(df)}")
@@ -175,6 +177,15 @@ def add_acclimation_days(df):
     lived_0_col_index = df.columns.get_loc('Lived 0')
     df.insert(lived_0_col_index, 'Lived -1', df['Lived 0'])
     df.insert(lived_0_col_index, 'Lived -2', df['Lived 0'])
+
+
+def shift_column_name(name):
+    match = re.match(r'^(Lived|Temp|Salinity) (-?\d+)$', name)
+    if match:
+        prefix, number = match.groups()
+        new_number = int(number) + 2
+        return f"{prefix} {new_number}"
+    return name  # keep unchanged if it doesn't match
 
 
 def routes_statistics(df):

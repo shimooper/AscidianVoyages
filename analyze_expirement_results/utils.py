@@ -111,44 +111,6 @@ def convert_features_df_to_tensor_for_rnn(X_df, device):
     return tensor_data
 
 
-def downsample_negative_class(logger, Xs_train, Ys_train, random_state, max_classes_ratio):
-    logger.info(f"Initial class distribution: {Ys_train.value_counts()}. Downsampling negative class...")
-
-    # Step 1: Separate positive and negative samples
-    positive_mask = Ys_train == 1
-    negative_mask = ~positive_mask
-
-    Xs_pos, Ys_pos = Xs_train[positive_mask], Ys_train[positive_mask]
-    Xs_neg, Ys_neg = Xs_train[negative_mask], Ys_train[negative_mask]
-
-    # Step 2: Determine max allowed negatives (3x the number of positives)
-    num_pos = len(Ys_pos)
-    max_negatives = max_classes_ratio * num_pos
-
-    # Step 3: Downsample negative class if needed
-    if len(Ys_neg) > max_negatives:
-        Xs_neg_sampled = Xs_neg.sample(n=max_negatives, random_state=random_state)
-        Ys_neg_sampled = Ys_neg.loc[Xs_neg_sampled.index]  # Ensure matching indices
-    else:
-        Xs_neg_sampled, Ys_neg_sampled = Xs_neg, Ys_neg
-
-    # Step 4: Combine the balanced dataset
-    Xs_balanced = pd.concat([Xs_pos, Xs_neg_sampled])
-    Ys_balanced = pd.concat([Ys_pos, Ys_neg_sampled])
-
-    # Shuffle while keeping Xs and Ys aligned
-    balanced_df = pd.concat([Xs_balanced, Ys_balanced], axis=1).sample(frac=1, random_state=random_state)
-
-    # Split back into Xs and Ys
-    Ys_balanced = balanced_df['death']
-    Xs_balanced = balanced_df.drop(columns=['death'])
-
-    # Print final class distribution
-    logger.info(f"Final class distribution: {Ys_balanced.value_counts()}")
-
-    return Xs_balanced, Ys_balanced
-
-
 def plot_models_comparison(results_df, outputs_dir: Path, title):
     all_models_test_results_df_melted = results_df.melt(id_vars='model_name', var_name='metric', value_name='value')
     plt.figure(figsize=(10, 6))

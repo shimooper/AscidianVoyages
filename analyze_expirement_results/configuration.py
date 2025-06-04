@@ -22,7 +22,7 @@ INCLUDE_SUSPECTED_ROUTES_PARTS = [True, False] if not DEBUG_MODE else [False]
 STRATIFY_TRAIN_TEST_SPLIT = [True, False] if not DEBUG_MODE else [False]
 # RANDOM_STATE = [0, 42, 123, 99, 2025] if not DEBUG_MODE else [0]
 RANDOM_STATE = [0] if not DEBUG_MODE else [0]
-NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH = [0]
+NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH = [0, 1, 2, 3] if not DEBUG_MODE else [0]
 # METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS = ['f1', 'mcc', 'auprc'] if not DEBUG_MODE else ['f1']
 METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS = ['f1'] if not DEBUG_MODE else ['f1']
 TEST_SET_SIZE = 0.2
@@ -51,8 +51,8 @@ class Config:
     data_dir_path: Path
     models_dir_path: Path
     do_feature_selection: bool
-    train_with_optuna: bool
-    optuna_number_of_trials: int
+    train_with_optuna: bool = False
+    optuna_number_of_trials: int = DEFAULT_OPTUNA_NUMBER_OF_TRIALS
     test_set_size: float = TEST_SET_SIZE
     validation_set_size: float = VALIDATION_SET_SIZE
     nn_max_epochs: int = NN_MAX_EPOCHS
