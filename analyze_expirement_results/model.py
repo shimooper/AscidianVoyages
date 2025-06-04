@@ -259,93 +259,16 @@ class ScikitModel(Model):
         return rfecv.support_
 
     def fit_and_test(self, logger, Xs_train, Ys_train, Xs_test, Ys_test):
-        X_train, X_val, y_train, y_val = train_test_split(Xs_train, Ys_train,
-                                                          test_size=self.config.validation_set_size,
-                                                          random_state=self.config.random_state,
-                                                          stratify=Ys_train)
-        logger.info(f"Split the train data to train and validation sets (validation ratio is {self.config.validation_set_size})")
+        # if self.config.balance_classes:
+        #     logger.info(f"Resampling train examples using RandomUnderSampler. Before: {y_train.value_counts()}")
+        #     rus = RandomUnderSampler(random_state=self.config.random_state, sampling_strategy=self.config.max_classes_ratio)
+        #     X_train, y_train = rus.fit_resample(X_train, y_train)
+        #     logger.info(f"After resampling: {y_train.value_counts()}")
 
-        if self.config.balance_classes:
-            logger.info(f"Resampling train examples using RandomUnderSampler. Before: {y_train.value_counts()}")
-            rus = RandomUnderSampler(random_state=self.config.random_state, sampling_strategy=self.config.max_classes_ratio)
-            X_train, y_train = rus.fit_resample(X_train, y_train)
-            logger.info(f"After resampling: {y_train.value_counts()}")
-
-        X_trainval = np.concatenate([X_train, X_val])
-        y_trainval = np.concatenate([y_train, y_val])
-
-        # Create test_fold: -1 for train, 0 for validation
-        test_fold = np.array([-1] * len(X_train) + [0] * len(X_val))
-        ps = PredefinedSplit(test_fold)
-
+        cv_splitter = StratifiedKFold(n_splits=5, shuffle=True, random_state=self.config.random_state)
         best_classifiers_metrics = {}
-        classifiers = self.create_classifiers_and_param_grids(Ys_train)
-        for classifier, param_grid in classifiers:
-            class_name = classifier.__class__.__name__
-            classifier_output_dir = self.model_train_dir / convert_pascal_to_snake_case(class_name)
-            classifier_output_dir.mkdir(exist_ok=True, parents=True)
-
-            logger.info(f"Training Classifier {class_name} with hyperparameters tuning using GridSearch and Stratified train-validation split.")
-            grid = GridSearchCV(
-                estimator=classifier,
-                param_grid=param_grid,
-                cv=ps,
-                scoring=METRIC_NAME_TO_SKLEARN_SCORER,
-                refit=self.config.metric,
-                return_train_score=True,
-                verbose=1,
-                n_jobs=self.config.cpus
-            )
-
-            try:
-                grid.fit(X_trainval, y_trainval)
-                grid_results = pd.DataFrame.from_dict(grid.cv_results_)
-                grid_results.to_csv(classifier_output_dir / f'{class_name}_grid_results.csv')
-                best_estimator_path = classifier_output_dir / f"best_{class_name}.pkl"
-                joblib.dump(grid.best_estimator_, best_estimator_path)
-
-                # Note: grid.best_score_ == grid_results['mean_test_{metric}'][grid.best_index_] (the mean cross-validated score of the best_estimator)
-                logger.info(
-                    f"Best params: {grid.best_params_}, Best index: {grid.best_index_}, Best score: {grid.best_score_}")
-
-                logger.info(
-                    f"Best estimator - MCC on train: {grid_results['mean_train_mcc'][grid.best_index_]}, "
-                    f"AUPRC on train: {grid_results['mean_train_auprc'][grid.best_index_]}, "
-                    f"F1 on train: {grid_results['mean_train_f1'][grid.best_index_]}, "
-                    f"MCC on held-out: {grid_results['mean_test_mcc'][grid.best_index_]}, "
-                    f"AUPRC on held-out: {grid_results['mean_test_auprc'][grid.best_index_]}, "
-                    f"F1 o held-out: {grid_results['mean_test_f1'][grid.best_index_]}")
-
-                best_classifiers_metrics[class_name] = (grid.best_index_,
-                                                        grid_results['mean_train_mcc'][grid.best_index_],
-                                                        grid_results['mean_train_auprc'][grid.best_index_],
-                                                        grid_results['mean_train_f1'][grid.best_index_],
-                                                        grid_results['mean_test_mcc'][grid.best_index_],
-                                                        grid_results['mean_test_auprc'][grid.best_index_],
-                                                        grid_results['mean_test_f1'][grid.best_index_],
-                                                        best_estimator_path)
-
-                if class_name in ['DecisionTreeClassifier', 'RandomForestClassifier', 'GradientBoostingClassifier',
-                                  'XGBClassifier']:
-                    self.plot_feature_importance(class_name, Xs_train.columns,
-                                                 grid.best_estimator_.feature_importances_, classifier_output_dir)
-
-                if class_name == 'DecisionTreeClassifier' and not DEBUG_MODE:
-                    self.plot_decision_tree(grid.best_estimator_, list(Xs_train.columns), classifier_output_dir)
-                    if len(Xs_train.columns) >= 2:
-                        self.plot_decision_functions_of_features_pairs(Xs_train, Ys_train, grid.best_params_,
-                                                                       grid.best_estimator_.feature_importances_,
-                                                                       classifier_output_dir)
-
-                Ys_test_predictions = grid.best_estimator_.predict_proba(Xs_test)
-                y_pred_probs = Ys_test_predictions[:, 1]
-                y_pred = Ys_test_predictions.argmax(axis=1)
-                self.test_on_test_data(logger, Ys_test, y_pred_probs, y_pred, classifier_output_dir)
-
-            except Exception as e:
-                logger.error(f"Failed to train classifier {class_name} with error: {e}")
-
-        self.train_lstm(logger, X_train, X_val, Xs_test, y_train, y_val, Ys_test, best_classifiers_metrics)
+        self.train_tree_models(logger, Xs_train, Ys_train, Xs_test, Ys_test, cv_splitter, best_classifiers_metrics)
+        self.train_lstm(logger, Xs_train, Xs_test, Ys_train, Ys_test, best_classifiers_metrics)
 
         best_classifier_dir = self.model_train_dir / 'best_classifier'
         best_classifier_dir.mkdir(exist_ok=True, parents=True)
@@ -380,6 +303,79 @@ class ScikitModel(Model):
         }
         with open(self.model_train_dir / 'model_metadata.json', 'w') as f:
             json.dump(metadata, f)
+
+    def convert_X_to_features(self, X):
+        pass
+
+    def train_tree_models(self, logger, Xs_train, Ys_train, Xs_test, Ys_test, cv_splitter, best_classifiers_metrics):
+        Xs_train_features = self.convert_X_to_features(Xs_train)
+        Xs_test_features = self.convert_X_to_features(Xs_test)
+
+        classifiers = self.create_classifiers_and_param_grids(Ys_train)
+        for classifier, param_grid in classifiers:
+            class_name = classifier.__class__.__name__
+            classifier_output_dir = self.model_train_dir / convert_pascal_to_snake_case(class_name)
+            classifier_output_dir.mkdir(exist_ok=True, parents=True)
+
+            logger.info(f"Training Classifier {class_name} with hyperparameters tuning using GridSearch and StratifiedKFold cross-validation.")
+            grid = GridSearchCV(
+                estimator=classifier,
+                param_grid=param_grid,
+                cv=cv_splitter,
+                scoring=METRIC_NAME_TO_SKLEARN_SCORER,
+                refit=self.config.metric,
+                return_train_score=True,
+                verbose=1,
+                n_jobs=self.config.cpus
+            )
+
+            try:
+                grid.fit(Xs_train, Ys_train)
+                grid_results = pd.DataFrame.from_dict(grid.cv_results_)
+                grid_results.to_csv(classifier_output_dir / f'{class_name}_grid_results.csv')
+                best_estimator_path = classifier_output_dir / f"best_{class_name}.pkl"
+                joblib.dump(grid.best_estimator_, best_estimator_path)
+
+                # Note: grid.best_score_ == grid_results['mean_test_{metric}'][grid.best_index_] (the mean cross-validated score of the best_estimator)
+                logger.info(
+                    f"Best params: {grid.best_params_}, Best index: {grid.best_index_}, Best score: {grid.best_score_}")
+
+                logger.info(
+                    f"Best estimator - MCC on train: {grid_results['mean_train_mcc'][grid.best_index_]}, "
+                    f"AUPRC on train: {grid_results['mean_train_auprc'][grid.best_index_]}, "
+                    f"F1 on train: {grid_results['mean_train_f1'][grid.best_index_]}, "
+                    f"MCC on held-out: {grid_results['mean_test_mcc'][grid.best_index_]}, "
+                    f"AUPRC on held-out: {grid_results['mean_test_auprc'][grid.best_index_]}, "
+                    f"F1 on held-out: {grid_results['mean_test_f1'][grid.best_index_]}")
+
+                best_classifiers_metrics[class_name] = (grid.best_index_,
+                                                        grid_results['mean_train_mcc'][grid.best_index_],
+                                                        grid_results['mean_train_auprc'][grid.best_index_],
+                                                        grid_results['mean_train_f1'][grid.best_index_],
+                                                        grid_results['mean_test_mcc'][grid.best_index_],
+                                                        grid_results['mean_test_auprc'][grid.best_index_],
+                                                        grid_results['mean_test_f1'][grid.best_index_],
+                                                        best_estimator_path)
+
+                if class_name in ['DecisionTreeClassifier', 'RandomForestClassifier', 'GradientBoostingClassifier',
+                                  'XGBClassifier']:
+                    self.plot_feature_importance(class_name, Xs_train.columns,
+                                                 grid.best_estimator_.feature_importances_, classifier_output_dir)
+
+                if class_name == 'DecisionTreeClassifier' and not DEBUG_MODE:
+                    self.plot_decision_tree(grid.best_estimator_, list(Xs_train.columns), classifier_output_dir)
+                    if len(Xs_train.columns) >= 2:
+                        self.plot_decision_functions_of_features_pairs(Xs_train, Ys_train, grid.best_params_,
+                                                                       grid.best_estimator_.feature_importances_,
+                                                                       classifier_output_dir)
+
+                Ys_test_predictions = grid.best_estimator_.predict_proba(Xs_test)
+                y_pred_probs = Ys_test_predictions[:, 1]
+                y_pred = Ys_test_predictions.argmax(axis=1)
+                self.test_on_test_data(logger, Ys_test, y_pred_probs, y_pred, classifier_output_dir)
+
+            except Exception as e:
+                logger.error(f"Failed to train classifier {class_name} with error: {e}")
 
     def create_classifiers_and_param_grids(self, Ys_train):
         knn_grid = {
