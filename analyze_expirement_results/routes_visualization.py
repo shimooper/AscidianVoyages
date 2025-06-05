@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from utils import get_column_groups_sorted
+from utils import get_column_groups_sorted, SURVIVAL_COLORS
 
 
 def plot_timeline(routes_df, lived_columns, condition_columns, condition_full_name, y_axis_label, output_dir):
@@ -21,8 +21,8 @@ def plot_timeline(routes_df, lived_columns, condition_columns, condition_full_na
         alive_conditions = [condition for condition, status in zip(condition_values, survival_values) if status == 0]
         dead_conditions = [condition for condition, status in zip(condition_values, survival_values) if status == 1]
 
-        ax.scatter(alive_days, alive_conditions, color='green', alpha=0.5, label='Alive')
-        ax.scatter(dead_days, dead_conditions, color='red', alpha=0.5, label='Dead')
+        ax.scatter(alive_days, alive_conditions, color=SURVIVAL_COLORS['Alive'], alpha=0.5, label='Alive')
+        ax.scatter(dead_days, dead_conditions, color=SURVIVAL_COLORS['Dead'], alpha=0.5, label='Dead')
 
     ax.set_title(f'Timeline of the effect of {condition_full_name} on ascidian survival', fontsize=20)
     ax.set_xlabel('Day', fontsize=18)

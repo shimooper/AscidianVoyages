@@ -21,6 +21,11 @@ METRICS_NAME_TO_AVERAGE_METRIC_NAME = {
 
 DAYS_DESCRIPTIONS = {0: "Current Day", 1: "1 Day Ago", 2: "2 Days Ago", 3: "3 Days Ago"}
 
+SURVIVAL_COLORS = {
+    'Alive': '#0072B2',  # blue
+    'Dead': '#E69F00',   # orange
+}
+
 
 def variable_equals_value(variable, value):
     if pd.isna(value):
@@ -93,18 +98,19 @@ def merge_dicts_average(dict_list):
     return {METRICS_NAME_TO_AVERAGE_METRIC_NAME[key]: sum_dict[key] / count_dict[key] for key in sum_dict}
 
 
-def convert_features_df_to_tensor_for_rnn(X_df, device):
-    # Reshape DataFrame into (n_samples, number_of_days, 2)
+def convert_data_to_tensor_for_rnn(X_df, device):
+    # Reshape DataFrame into (n_samples, number_of_days, 3)
 
     n_samples = X_df.shape[0]
-    number_of_days = int(len(X_df.columns) / 2)
+    number_of_days = int(len(X_df.columns) / 3)
 
     # Extract temperature and salinity values
-    temperature = X_df[[f"{DAYS_DESCRIPTIONS[i]} Temperature" for i in range(number_of_days - 1, -1, -1)]].values  # Shape (n_samples, number_of_days)
-    salinity = X_df[[f"{DAYS_DESCRIPTIONS[i]} Salinity" for i in range(number_of_days - 1, -1, -1)]].values  # Shape (n_samples, number_of_days)
+    temperature = X_df[[f"Temperature {i}" for i in range(1, number_of_days + 1)]].values
+    salinity = X_df[[f"Salinity {i}" for i in range(1, number_of_days + 1)]].values
+    time = X_df[[f"Time {i}" for i in range(1, number_of_days + 1)]].values
 
-    # Stack them to get (n_samples, number_of_days, 2)
-    tensor_data = np.stack([temperature, salinity], axis=-1)  # Shape (n_samples, number_of_days, 2)
+    # Stack them to get (n_samples, number_of_days, 3)
+    tensor_data = np.stack([temperature, salinity, time], axis=-1)  # Shape (n_samples, number_of_days, 3)
 
     # Convert to PyTorch tensor
     tensor_data = torch.tensor(tensor_data, dtype=torch.float32, device=device)

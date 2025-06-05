@@ -11,7 +11,7 @@ import lightning as L
 class LSTMModel(L.LightningModule):
     def __init__(self, hidden_size=16, num_layers=1, lr=0.001):
         super(LSTMModel, self).__init__()
-        self.lstm = nn.LSTM(input_size=2, hidden_size=hidden_size, num_layers=num_layers, batch_first=True)
+        self.lstm = nn.LSTM(input_size=3, hidden_size=hidden_size, num_layers=num_layers, batch_first=True)
         self.fc1 = nn.Linear(hidden_size, 8)
         self.fc2 = nn.Linear(8, 1)
         self.sigmoid = nn.Sigmoid()

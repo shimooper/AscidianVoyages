@@ -5,6 +5,7 @@ from concurrent.futures import as_completed, ProcessPoolExecutor
 import joblib
 import pandas as pd
 import json
+import re
 import seaborn as sns
 import numpy as np
 import matplotlib.pyplot as plt
@@ -21,6 +22,7 @@ from sklearn.neural_network import MLPClassifier
 import xgboost
 from xgboost import XGBClassifier
 from sklearn.feature_selection import RFECV
+from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 
 from imblearn.combine import SMOTETomek
@@ -33,8 +35,8 @@ import lightning as L
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 
 from utils import setup_logger, convert_pascal_to_snake_case, get_column_groups_sorted, convert_columns_to_int, \
-    get_lived_columns_to_consider, merge_dicts_average, convert_features_df_to_tensor_for_rnn, \
-    DAYS_DESCRIPTIONS, plot_models_comparison
+    get_lived_columns_to_consider, merge_dicts_average, convert_data_to_tensor_for_rnn, \
+    plot_models_comparison, SURVIVAL_COLORS
 from configuration import METRIC_NAME_TO_SKLEARN_SCORER, DEBUG_MODE, Config
 from model_lstm import LSTMModel
 
@@ -95,14 +97,18 @@ class Model:
 
         return Xs_train, Ys_train, Xs_test, Ys_test
 
-    def plot_univariate_features_with_respect_to_label(self, train_df, test_df):
-        full_df = pd.concat([train_df, test_df], axis=0)
+    def plot_univariate_features_with_respect_to_label(self, Xs_train, Xs_test, Ys_train, Ys_test):
+        Xs_train = Xs_train.copy()
+        Xs_test = Xs_test.copy()
+        Xs_train['death'] = Ys_train
+        Xs_test['death'] = Ys_test
+        full_df = pd.concat([Xs_train, Xs_test], axis=0)
 
         full_df['death_label'] = full_df['death'].map({1: 'Dead', 0: 'Alive'}).astype('category')
         full_df.drop(columns=['death'], inplace=True)
 
         temp_cols = [col for col in full_df.columns if 'temp' in col.lower()]
-        salinity_cols = [col for col in full_df.columns if 'salinity' in col.lower()]
+        salinity_cols = [col for col in full_df.columns if 'sal' in col.lower()]
 
         df_temp = full_df[temp_cols + ['death_label']].melt(id_vars='death_label', var_name='feature',
                                                             value_name='value')
@@ -111,21 +117,20 @@ class Model:
 
         fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
-        sns.stripplot(data=df_temp, x='feature', y='value', hue='death_label', jitter=True, alpha=0.7, ax=axes[0],
+        sns.stripplot(data=df_temp, x='feature', y='value', hue='death_label', palette=SURVIVAL_COLORS, jitter=True, alpha=0.7, ax=axes[0],
                       legend=False)
         axes[0].set_ylabel("Temperature (celsius)", fontsize=12)
-        axes[0].tick_params(axis='x', rotation=45)
+        # axes[0].tick_params(axis='x', rotation=45)
         axes[0].set_xlabel(None)
 
-        sns.stripplot(data=df_salinity, x='feature', y='value', hue='death_label', jitter=True, alpha=0.7, ax=axes[1])
-        axes[1].yaxis.set_label_position("right")
-        axes[1].yaxis.tick_right()
+        sns.stripplot(data=df_salinity, x='feature', y='value', hue='death_label', palette=SURVIVAL_COLORS, jitter=True, alpha=0.7, ax=axes[1])
+        # axes[1].yaxis.set_label_position("right")
+        # axes[1].yaxis.tick_right()
         axes[1].set_ylabel("Salinity (ppt)", fontsize=12)
-        axes[1].tick_params(axis='x', rotation=45)
+        # axes[1].tick_params(axis='x', rotation=45)
         axes[1].set_xlabel(None)
         axes[1].legend(title=None)
 
-        fig.suptitle("Feature distributions colored by label", fontsize=16)
         plt.savefig(self.model_data_dir / "scatter_plot.png", dpi=600, bbox_inches='tight')
         plt.close()
 
@@ -268,14 +273,14 @@ class ScikitModel(Model):
         cv_splitter = StratifiedKFold(n_splits=5, shuffle=True, random_state=self.config.random_state)
         best_classifiers_metrics = {}
         self.train_tree_models(logger, Xs_train, Ys_train, Xs_test, Ys_test, cv_splitter, best_classifiers_metrics)
-        self.train_lstm(logger, Xs_train, Xs_test, Ys_train, Ys_test, best_classifiers_metrics)
+        self.train_lstm(logger, Xs_train, Xs_test, Ys_train, Ys_test, cv_splitter, best_classifiers_metrics)
 
         best_classifier_dir = self.model_train_dir / 'best_classifier'
         best_classifier_dir.mkdir(exist_ok=True, parents=True)
         best_classifiers_df = pd.DataFrame.from_dict(best_classifiers_metrics, orient='index',
                                                      columns=['best_index', 'train mcc', 'train auprc', 'train f1',
                                                               'validation mcc', 'validation auprc', 'validation f1',
-                                                              'model_path'])
+                                                              'model_path', 'model_results'])
         best_classifiers_df.index.name = 'model_name'
         best_classifiers_df.to_csv(best_classifier_dir / 'best_classifier_from_each_class.csv')
         logger.info(f"Aggregated the best classifiers from each classifier (after hyper-parameter tuning), and saved "
@@ -304,12 +309,33 @@ class ScikitModel(Model):
         with open(self.model_train_dir / 'model_metadata.json', 'w') as f:
             json.dump(metadata, f)
 
-    def convert_X_to_features(self, X):
-        pass
+    def convert_X_to_features(self, X_df):
+        temperature_cols = [col for col in X_df.columns if col.startswith("Temperature ")]
+        salinity_cols = [col for col in X_df.columns if col.startswith("Salinity ")]
+        time_cols = [col for col in X_df.columns if col.startswith("Time ")]
+
+        def extract_number(col):
+            match = re.match(r'Time (\d+)', col)
+            return int(match.group(1)) if match else -1
+
+        df_features = pd.DataFrame()
+        df_features["min_temp"] = X_df[temperature_cols].min(axis=1)
+        df_features["max_temp"] = X_df[temperature_cols].max(axis=1)
+        df_features["max_temp_diff"] = df_features["max_temp"] - df_features["min_temp"]
+
+        df_features["min_sal"] = X_df[salinity_cols].min(axis=1)
+        df_features["max_sal"] = X_df[salinity_cols].max(axis=1)
+        df_features["max_sal_diff"] = df_features["max_sal"] - df_features["min_sal"]
+
+        df_features["days_passed"] = X_df[max(time_cols, key=extract_number)]
+
+        return df_features
 
     def train_tree_models(self, logger, Xs_train, Ys_train, Xs_test, Ys_test, cv_splitter, best_classifiers_metrics):
         Xs_train_features = self.convert_X_to_features(Xs_train)
         Xs_test_features = self.convert_X_to_features(Xs_test)
+
+        self.plot_univariate_features_with_respect_to_label(Xs_train_features, Xs_test_features, Ys_train, Ys_test)
 
         classifiers = self.create_classifiers_and_param_grids(Ys_train)
         for classifier, param_grid in classifiers:
@@ -330,11 +356,13 @@ class ScikitModel(Model):
             )
 
             try:
-                grid.fit(Xs_train, Ys_train)
+                grid.fit(Xs_train_features, Ys_train)
                 grid_results = pd.DataFrame.from_dict(grid.cv_results_)
                 grid_results.to_csv(classifier_output_dir / f'{class_name}_grid_results.csv')
                 best_estimator_path = classifier_output_dir / f"best_{class_name}.pkl"
                 joblib.dump(grid.best_estimator_, best_estimator_path)
+                best_estimator_results_path = classifier_output_dir / f"best_{class_name}_results.csv"
+                grid_results.loc[grid.best_index_].to_csv(best_estimator_results_path)
 
                 # Note: grid.best_score_ == grid_results['mean_test_{metric}'][grid.best_index_] (the mean cross-validated score of the best_estimator)
                 logger.info(
@@ -355,21 +383,23 @@ class ScikitModel(Model):
                                                         grid_results['mean_test_mcc'][grid.best_index_],
                                                         grid_results['mean_test_auprc'][grid.best_index_],
                                                         grid_results['mean_test_f1'][grid.best_index_],
-                                                        best_estimator_path)
+                                                        best_estimator_path,
+                                                        best_estimator_results_path,
+                                                        )
 
                 if class_name in ['DecisionTreeClassifier', 'RandomForestClassifier', 'GradientBoostingClassifier',
                                   'XGBClassifier']:
-                    self.plot_feature_importance(class_name, Xs_train.columns,
+                    self.plot_feature_importance(class_name, Xs_train_features.columns,
                                                  grid.best_estimator_.feature_importances_, classifier_output_dir)
 
                 if class_name == 'DecisionTreeClassifier' and not DEBUG_MODE:
-                    self.plot_decision_tree(grid.best_estimator_, list(Xs_train.columns), classifier_output_dir)
-                    if len(Xs_train.columns) >= 2:
-                        self.plot_decision_functions_of_features_pairs(Xs_train, Ys_train, grid.best_params_,
+                    self.plot_decision_tree(grid.best_estimator_, list(Xs_train_features.columns), classifier_output_dir)
+                    if len(Xs_train_features.columns) >= 2:
+                        self.plot_decision_functions_of_features_pairs(Xs_train_features, Ys_train, grid.best_params_,
                                                                        grid.best_estimator_.feature_importances_,
                                                                        classifier_output_dir)
 
-                Ys_test_predictions = grid.best_estimator_.predict_proba(Xs_test)
+                Ys_test_predictions = grid.best_estimator_.predict_proba(Xs_test_features)
                 y_pred_probs = Ys_test_predictions[:, 1]
                 y_pred = Ys_test_predictions.argmax(axis=1)
                 self.test_on_test_data(logger, Ys_test, y_pred_probs, y_pred, classifier_output_dir)
@@ -416,7 +446,7 @@ class ScikitModel(Model):
 
         if not DEBUG_MODE:
             rfc_grid = {
-                'n_estimators': [5, 10],
+                'n_estimators': [5, 10, 20],
                 'max_depth': [3, 5],
                 'min_samples_split': [2, 10],
                 'min_samples_leaf': [1, 2, 5],
@@ -456,7 +486,7 @@ class ScikitModel(Model):
             Ys_trains_classes_counts = Counter(Ys_train)
             xgboost_grid = {
                 'learning_rate': [0.01, 0.1],
-                'n_estimators': [10, 50],
+                'n_estimators': [5, 10, 20],
                 'max_depth': [3, 5],
                 'booster': ['dart'],
                 'n_jobs': [1],
@@ -486,16 +516,12 @@ class ScikitModel(Model):
             (XGBClassifier(), xgboost_grid)
         ]
 
-    def train_lstm(self, logger, X_train, X_val, X_test, y_train, y_val, y_test, best_classifiers_metrics):
-        logger.info(f"Training LSTM Classifier with hyperparameters tuning using a fixed train-validation split")
+    def train_lstm(self, logger, Xs_train, Xs_test, Ys_train, Ys_test, cv_splitter, best_classifiers_metrics):
+        logger.info(f"Training LSTM Classifier with hyperparameters tuning using 5-fold cross-validation")
 
         device = torch.device('cpu')
         L.seed_everything(self.config.random_state, workers=True)
         classifier_output_dir = self.model_train_dir / 'lstm_classifier'
-
-        X_train = convert_features_df_to_tensor_for_rnn(X_train, device)
-        X_val = convert_features_df_to_tensor_for_rnn(X_val, device)
-        X_test = convert_features_df_to_tensor_for_rnn(X_test, device)
 
         # Hyperparameter grid
         if not DEBUG_MODE:
@@ -523,9 +549,9 @@ class ScikitModel(Model):
                                                                                  hyperparameter_grid['num_layers'],
                                                                                  hyperparameter_grid['lr'],
                                                                                  hyperparameter_grid['batch_size']):
-                    futures.append(executor.submit(self.train_lstm_with_hyperparameters, logger, classifier_output_dir,
-                                                   hidden_size, num_layers, lr, batch_size, X_train, y_train, X_val, y_val,
-                                                   device, self.config.metric, self.config.nn_max_epochs))
+                    futures.append(executor.submit(self.train_lstm_with_hyperparameters_cv, logger, classifier_output_dir,
+                                                   hidden_size, num_layers, lr, batch_size, Xs_train, Ys_train,
+                                                   device, self.config.metric, self.config.nn_max_epochs, cv_splitter))
 
                 for future in as_completed(futures):
                     # Append result to the results list
@@ -535,10 +561,10 @@ class ScikitModel(Model):
                                                                              hyperparameter_grid['num_layers'],
                                                                              hyperparameter_grid['lr'],
                                                                              hyperparameter_grid['batch_size']):
-                result = self.train_lstm_with_hyperparameters(logger, classifier_output_dir,
+                result = self.train_lstm_with_hyperparameters_cv(logger, classifier_output_dir,
                                                               hidden_size, num_layers, lr, batch_size,
-                                                              X_train, y_train, X_val, y_val,
-                                                              device, self.config.metric, self.config.nn_max_epochs)
+                                                              Xs_train, Ys_train,
+                                                              device, self.config.metric, self.config.nn_max_epochs, cv_splitter)
                 all_results.append(result)
 
         # Save all hyperparameter results to CSV
@@ -547,34 +573,55 @@ class ScikitModel(Model):
         logger.info(f"Hyperparameter search results saved to {classifier_output_dir / 'hyperparameter_results.csv'}")
 
         # Find the best hyperparameters
-        best_model_index = results_df[f'validation {self.config.metric}'].idxmax()
-        best_model = results_df.loc[best_model_index]
+        best_model_index = results_df[f'mean_test_{self.config.metric}'].idxmax()
+        best_model_results = results_df.loc[best_model_index]
+        best_model_results_path = classifier_output_dir / 'best_lstm_results.csv'
+        best_model_results.to_csv(best_model_results_path)
 
-        logger.info(f"Best LSTM model:\n{best_model}")
-        best_classifiers_metrics['LSTMClassifier'] = [best_model_index, best_model['train mcc'],
-                                            best_model['train auprc'], best_model['train f1'],
-                                            best_model['validation mcc'], best_model['validation auprc'],
-                                            best_model['validation f1'], best_model['best_model_path']]
+        logger.info(f"Best LSTM model results after 5-fold cross-validation:\n{best_model_results}")
 
-        # Test best model on test data
-        test_dataset = TensorDataset(X_test, torch.tensor(y_test.values, device=device))
+        # Now, train again using the best hyperparameters using 90/10 split of the training set
+        logger.info(f"Training LSTM Classifier with the best hyperparameters...")
+        final_train_dir = classifier_output_dir / 'final_train'
+        final_train_dir.mkdir(exist_ok=True, parents=True)
+
+        X_train, X_val, y_train, y_val = train_test_split(Xs_train, Ys_train, test_size=0.1, random_state=self.config.random_state)
+        _, _, _, _, _, _, final_model_path = self.train_lstm_with_hyperparameters_train_val(
+            final_train_dir, best_model_results['hidden_size'], best_model_results['num_layers'],
+            best_model_results['lr'], best_model_results['batch_size'], X_train, y_train, X_val, y_val, device,
+            self.config.metric, self.config.nn_max_epochs)
+
+        best_classifiers_metrics['LSTMClassifier'] = [best_model_index, best_model_results['mean_train_mcc'],
+                                            best_model_results['mean_train_auprc'], best_model_results['mean_train_f1'],
+                                            best_model_results['mean_test_mcc'], best_model_results['mean_test_auprc'],
+                                            best_model_results['mean_test_f1'], final_model_path, best_model_results_path]
+
+        # Test final model on test data
+        scaler = StandardScaler()
+        scaler.fit(X_train)
+        X_test = scaler.transform(Xs_test)
+        test_dataset = TensorDataset(X_test, torch.tensor(Ys_test.values, device=device))
         test_data_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
-        best_model = LSTMModel.load_from_checkpoint(best_model['best_model_path'])
-        best_model.to(device)
-        best_model.eval()
+        final_model = LSTMModel.load_from_checkpoint(final_model_path)
+        final_model.to(device)
+        final_model.eval()
         with torch.no_grad():
-            y_pred_probs = torch.cat([best_model(x) for x, _ in test_data_loader]).cpu().numpy().flatten()
+            y_pred_probs = torch.cat([final_model(x) for x, _ in test_data_loader]).cpu().numpy().flatten()
             y_pred = (y_pred_probs > 0.5).astype(int)
-        self.test_on_test_data(logger, y_test, y_pred_probs, y_pred, classifier_output_dir)
+        self.test_on_test_data(logger, Ys_test, y_pred_probs, y_pred, classifier_output_dir)
 
-    @staticmethod
-    def train_lstm_with_hyperparameters(logger, classifier_output_dir, hidden_size, num_layers, lr, batch_size,
-                                        X_train, y_train, X_val, y_val, device, metric, nn_max_epochs):
-        grid_combination_dir = classifier_output_dir / f'hidden_size_{hidden_size}_num_layers_{num_layers}_lr_{lr}_batch_size_{batch_size}'
-        grid_combination_dir.mkdir(exist_ok=True, parents=True)
+    def train_lstm_with_hyperparameters_train_val(self, output_dir, hidden_size, num_layers, lr, batch_size,
+                                                  X_train, y_train, X_val, y_val, device, metric, nn_max_epochs):
+        # Standardize the data
+        scaler = StandardScaler()
+        X_train_fold = scaler.fit_transform(X_train)
+        X_val_fold = scaler.transform(X_val)
 
-        train_dataset = TensorDataset(X_train, torch.tensor(y_train.values, device=device))
-        val_dataset = TensorDataset(X_val, torch.tensor(y_val.values, device=device))
+        X_train_tensor = convert_data_to_tensor_for_rnn(X_train_fold, device)
+        X_val_tensor = convert_data_to_tensor_for_rnn(X_val_fold, device)
+
+        train_dataset = TensorDataset(X_train_tensor, torch.tensor(y_train.values, device=device))
+        val_dataset = TensorDataset(X_val_tensor, torch.tensor(y_val.values, device=device))
 
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
         val_loader = DataLoader(val_dataset, batch_size=len(val_dataset), shuffle=False)
@@ -583,13 +630,13 @@ class ScikitModel(Model):
         model.to(device)
 
         checkpoint_callback = ModelCheckpoint(monitor=f'val_{metric}', mode='max', save_top_k=1,
-                                              dirpath=grid_combination_dir / 'checkpoints',
+                                              dirpath=output_dir / 'checkpoints',
                                               filename='best_model-epoch-{epoch}')
         trainer = L.Trainer(
             max_epochs=nn_max_epochs,
             logger=True,
-            default_root_dir=grid_combination_dir,  # logs directory
-            callbacks=[EarlyStopping(monitor=f'val_loss', patience=10, mode='min'), checkpoint_callback],
+            default_root_dir=output_dir,  # logs directory
+            callbacks=[EarlyStopping(monitor=f'val_loss', patience=3, mode='min'), checkpoint_callback],
             deterministic=True
         )
         trainer.fit(model, train_loader, val_loader)
@@ -614,12 +661,43 @@ class ScikitModel(Model):
         val_f1 = f1_score(y_val, y_val_pred)
         val_auprc = average_precision_score(y_val, y_val_pred_probs)
 
-        logger.info(f"Trained LSTM with hidden_size={hidden_size}, num_layers={num_layers}, lr={lr}, "
-                    f"batch_size={batch_size}. Train MCC: {train_mcc}, Train F1: {train_f1}, Train AUPRC: {train_auprc}, "
-                    f"Val MCC: {val_mcc}, Val F1: {val_f1}, Val AUPRC: {val_auprc}")
+        return train_mcc, train_f1, train_auprc, val_mcc, val_f1, val_auprc, best_model_path
 
-        results = {'hidden_size': hidden_size, 'num_layers': num_layers, 'lr': lr, 'batch_size': batch_size,
-                   'validation mcc': val_mcc, 'validation f1': val_f1, 'validation auprc': val_auprc,
-                   'train mcc': train_mcc, 'train f1': train_f1, 'train auprc': train_auprc,
-                   'best_model_path': best_model_path}
+    def train_lstm_with_hyperparameters_cv(self, logger, classifier_output_dir, hidden_size, num_layers, lr, batch_size,
+                                           X_train, y_train, device, metric, nn_max_epochs, cv_splitter):
+        grid_combination_dir = classifier_output_dir / f'hidden_size_{hidden_size}_num_layers_{num_layers}_lr_{lr}_batch_size_{batch_size}'
+        grid_combination_dir.mkdir(exist_ok=True, parents=True)
+
+        logger.info(f"Training LSTM with hidden_size={hidden_size}, num_layers={num_layers}, lr={lr}, batch_size={batch_size}, "
+                    f"using {cv_splitter.n_splits}-fold cross-validation.")
+
+        results = {'hidden_size': hidden_size, 'num_layers': num_layers, 'lr': lr, 'batch_size': batch_size}
+        for fold_id, (train_idx, test_idx) in enumerate(cv_splitter.split(X_train, y_train)):
+            fold_dir = grid_combination_dir / f'fold_{fold_id}'
+            fold_dir.mkdir(exist_ok=True, parents=True)
+
+            X_train_fold = X_train.iloc[train_idx]
+            y_train_fold = y_train.iloc[train_idx]
+            X_val_fold = X_train.iloc[test_idx]
+            y_val_fold = y_train.iloc[test_idx]
+
+            train_mcc, train_f1, train_auprc, val_mcc, val_f1, val_auprc, best_model_path = \
+                self.train_lstm_with_hyperparameters_train_val(fold_dir, hidden_size, num_layers, lr, batch_size,
+                                                               X_train_fold, y_train_fold, X_val_fold, y_val_fold,
+                                                               device, metric, nn_max_epochs)
+
+            results[f'split_{fold_id}_train_mcc'] = train_mcc
+            results[f'split_{fold_id}_train_f1'] = train_f1
+            results[f'split_{fold_id}_train_auprc'] = train_auprc
+            results[f'split_{fold_id}_test_mcc'] = val_mcc
+            results[f'split_{fold_id}_test_f1'] = val_f1
+            results[f'split_{fold_id}_test_auprc'] = val_auprc
+
+        results[f'mean_train_mcc'] = np.mean([results[f'split_{fold_id}_train_mcc'] for fold_id in range(cv_splitter.n_splits)])
+        results[f'mean_train_f1'] = np.mean([results[f'split_{fold_id}_train_f1'] for fold_id in range(cv_splitter.n_splits)])
+        results[f'mean_train_auprc'] = np.mean([results[f'split_{fold_id}_train_auprc'] for fold_id in range(cv_splitter.n_splits)])
+        results[f'mean_test_mcc'] = np.mean([results[f'split_{fold_id}_test_mcc'] for fold_id in range(cv_splitter.n_splits)])
+        results[f'mean_test_f1'] = np.mean([results[f'split_{fold_id}_test_f1'] for fold_id in range(cv_splitter.n_splits)])
+        results[f'mean_test_auprc'] = np.mean([results[f'split_{fold_id}_test_auprc'] for fold_id in range(cv_splitter.n_splits)])
+
         return results
