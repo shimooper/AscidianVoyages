@@ -1,0 +1,6 @@
+2025-06-05 12:16:03,923 - CONFIGURATION_0_PREPROCESS - INFO - Applied filters: include_control_routes=True, include_suspected_routes=False, stratify=False
+There are 140 routes in the dataset. 71 of them ended with death, and 69 did not.
+61 routes are in winter season, 33 of them ended with death, and 28 did not.
+79 routes are in summer season, 38 of them ended with death, and 41 did not.
+Routes were saved to C:\repos\GoogleShips\analyze_expirement_results\outputs_test_local\configuration_0\data\full.csv.
+There are 115 routes in the train set and 25 routes in the test set.
