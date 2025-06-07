@@ -17,6 +17,9 @@ from utils import plot_models_comparison
 def create_config(flag_combination, configuration_id, cpus, outputs_dir, do_feature_selection):
     include_control_flag, include_suspected_flag, number_of_future_days, stratify_flag, random_state, metric, balance_classes = flag_combination
 
+    if balance_classes:
+        raise NotImplementedError("Balance classes is not implemented yet.")
+
     outputs_dir_path = outputs_dir / f'configuration_{configuration_id}'
     outputs_dir_path.mkdir(exist_ok=True, parents=True)
 
@@ -84,16 +87,10 @@ def aggregate_validation_metrics_of_one_configuration(config: Config):
     classifier_name_to_validation_results = defaultdict(dict)
 
     for model_dir_path in config.models_dir_path.iterdir():
-        model_validation_results_path = model_dir_path / 'train_outputs' / 'best_classifier' / 'best_classifier_from_each_class.csv'
-        model_validation_results_df = pd.read_csv(model_validation_results_path, index_col='model_name')[
-            ['validation f1', 'validation auprc', 'validation mcc']]
-        model_validation_results_df.rename(columns={
-            'validation f1': 'F1',
-            'validation auprc': 'AUPRC',
-            'validation mcc': 'MCC'
-        }, inplace=True)
-        for classifier_name in model_validation_results_df.index.values:
-            classifier_name_to_validation_results[classifier_name][model_dir_path.name] = model_validation_results_df.loc[classifier_name]
+        model_results_path = model_dir_path / 'train_outputs' / 'best_classifier' / 'best_classifier_from_each_class.csv'
+        model_results_df = pd.read_csv(model_results_path, index_col='model_name')
+        for classifier_name in model_results_df.index.values:
+            classifier_name_to_validation_results[classifier_name][model_dir_path.name] = model_results_df.loc[classifier_name]
 
     for classifier_name, days_to_results_dict in classifier_name_to_validation_results.items():
         days_comparison_df = pd.DataFrame.from_dict(days_to_results_dict, orient='index')
@@ -101,7 +98,7 @@ def aggregate_validation_metrics_of_one_configuration(config: Config):
 
         classifier_comparison_dir = config.models_dir_path / 'classifier_comparison' / classifier_name
         classifier_comparison_dir.mkdir(exist_ok=True, parents=True)
-        plot_models_comparison(days_comparison_df.reset_index(), classifier_comparison_dir, f'Models comparison - validation set - {classifier_name}')
+        plot_models_comparison(days_comparison_df, classifier_comparison_dir, config.metric)
 
 
 if __name__ == "__main__":

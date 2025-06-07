@@ -1,3 +1,0 @@
-2025-06-05 12:16:06,050 - MODEL_0_TRAIN - INFO - Training Classifier RandomForestClassifier with hyperparameters tuning using GridSearch and StratifiedKFold cross-validation.
-2025-06-05 12:16:06,426 - MODEL_0_TRAIN - INFO - Best params: {'bootstrap': True, 'class_weight': 'balanced', 'max_depth': None, 'min_samples_leaf': 1, 'min_samples_split': 2, 'n_estimators': 5, 'random_state': 0}, Best index: 0, Best score: 0.5091792418108207
-2025-06-05 12:16:06,426 - MODEL_0_TRAIN - INFO - Best estimator - MCC on train: 0.7897762922156444, AUPRC on train: 0.8937889391154462, F1 on train: 0.7877109585804243, MCC on held-out: 0.49962146074401675, AUPRC on held-out: 0.5184005465188845, F1 on held-out: 0.5091792418108207

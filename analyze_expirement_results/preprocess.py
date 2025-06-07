@@ -27,6 +27,11 @@ def get_preprocessed_data():
     df.replace("\\", pd.NA, inplace=True)
     logger.info(f"Replaced all backslashes with NaN values.")
 
+    add_acclimation_days(df)
+    logger.info(f"Added acclimation days columns.")
+    df.columns = [shift_column_name(col) for col in df.columns]
+    logger.info(f"Shifted column names to start with day 0")
+
     # Convert Temp, Salinity, Lived columns to integers
     lived_columns, temperature_columns, salinity_columns = get_column_groups_sorted(df)
     for col in lived_columns + temperature_columns + salinity_columns:
@@ -37,10 +42,6 @@ def get_preprocessed_data():
     logger.info(f"Replaced 1 with 0 and 0 with 1 in Lived columns.")
     add_dying_day(df, lived_columns, temperature_columns, salinity_columns)
     logger.info(f"Added dying_day column.")
-    add_acclimation_days(df)
-    logger.info(f"Added acclimation days columns.")
-    df.columns = [shift_column_name(col) for col in df.columns]
-    logger.info(f"Shifted column names to start with day 0")
 
     df.to_csv(data_processed_path, index=False)
     logger.info(f"Preprocessed data saved to {data_processed_path}\n{routes_statistics(df)}")
@@ -104,13 +105,11 @@ def add_dying_day(df, lived_columns, temperature_columns, salinity_columns):
     # Iterate over each row
     for idx, row in df.iterrows():
         # Find the last column of survival (containing 0)
-        last_col_of_survival = None
-        for col in lived_columns:
-            if variable_equals_value(row[col], 0):
-                last_col_of_survival = col
+        row_lived_columns = row[lived_columns]
+        last_col_of_survival = row_lived_columns[row_lived_columns == 0].index[-1]
+        last_col_of_survival_index = lived_columns.index(last_col_of_survival)
 
         # Fill all previous columns with 0
-        last_col_of_survival_index = lived_columns.index(last_col_of_survival)
         df.loc[idx, lived_columns[:last_col_of_survival_index + 1]] = 0
 
         first_col_of_death_index = last_col_of_survival_index + 1
@@ -120,7 +119,7 @@ def add_dying_day(df, lived_columns, temperature_columns, salinity_columns):
             df.loc[idx, temperature_columns[first_col_of_death_index + 1:]] = pd.NA
             df.loc[idx, salinity_columns[first_col_of_death_index + 1:]] = pd.NA
 
-            dying_day[idx] = first_col_of_death_index
+            dying_day[idx] = int(lived_columns[first_col_of_death_index].split()[1])
         else:  # The animal lived until the end of the experiment
             dying_day[idx] = pd.NA
 
@@ -183,7 +182,7 @@ def shift_column_name(name):
     match = re.match(r'^(Lived|Temp|Salinity) (-?\d+)$', name)
     if match:
         prefix, number = match.groups()
-        new_number = int(number) + 2
+        new_number = int(number) + 3
         return f"{prefix} {new_number}"
     return name  # keep unchanged if it doesn't match
 

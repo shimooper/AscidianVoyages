@@ -1,4 +1,5 @@
 import itertools
+from functools import reduce
 from collections import Counter
 from concurrent.futures import as_completed, ProcessPoolExecutor
 
@@ -277,24 +278,20 @@ class ScikitModel(Model):
 
         best_classifier_dir = self.model_train_dir / 'best_classifier'
         best_classifier_dir.mkdir(exist_ok=True, parents=True)
-        best_classifiers_df = pd.DataFrame.from_dict(best_classifiers_metrics, orient='index',
-                                                     columns=['best_index', 'train mcc', 'train auprc', 'train f1',
-                                                              'validation mcc', 'validation auprc', 'validation f1',
-                                                              'model_path', 'model_results'])
+
+        # Find common indices across all Series objects (which are the values of best_classifiers_metrics)
+        common_index = set.intersection(*(set(s.index) for s in best_classifiers_metrics.values()))
+        common_index = sorted(common_index)
+        # Filter each Series to keep only the common index
+        filtered = {k: v[common_index] for k, v in best_classifiers_metrics.items()}
+        best_classifiers_df = pd.DataFrame.from_dict(filtered, orient='index')
+
         best_classifiers_df.index.name = 'model_name'
         best_classifiers_df.to_csv(best_classifier_dir / 'best_classifier_from_each_class.csv')
         logger.info(f"Aggregated the best classifiers from each classifier (after hyper-parameter tuning), and saved "
                     f"them to {best_classifier_dir / 'best_classifier_from_each_class.csv'}")
 
-        plot_models_comparison(best_classifiers_df[['validation f1', 'validation auprc', 'validation mcc']].reset_index()
-                               .rename(columns={'validation f1': 'F1', 'validation auprc': 'AUPRC', 'validation mcc': 'MCC'}),
-                               best_classifier_dir, f'Classifiers comparison - validation set - {self.number_of_days_to_consider} days')
-
-        best_classifier_class = best_classifiers_df[f'validation {self.config.metric}'].idxmax()
-        best_classifier_results = best_classifiers_df.loc[best_classifier_class]
-        best_classifier_results.to_csv(best_classifier_dir / 'best_classifier.csv')
-        logger.info(f'Best classifier (validation {self.config.metric}): {best_classifier_class}. '
-                    f'Saved its metrics to {best_classifier_dir / "best_classifier.csv"}')
+        plot_models_comparison(best_classifiers_df, best_classifier_dir, self.config.metric)
 
         # Save metadata
         metadata = {
@@ -334,6 +331,8 @@ class ScikitModel(Model):
     def train_tree_models(self, logger, Xs_train, Ys_train, Xs_test, Ys_test, cv_splitter, best_classifiers_metrics):
         Xs_train_features = self.convert_X_to_features(Xs_train)
         Xs_test_features = self.convert_X_to_features(Xs_test)
+        Xs_train_features.to_csv(self.model_data_dir / 'Xs_train_features.csv', index=False)
+        Xs_test_features.to_csv(self.model_data_dir / 'Xs_test_features.csv', index=False)
 
         self.plot_univariate_features_with_respect_to_label(Xs_train_features, Xs_test_features, Ys_train, Ys_test)
 
@@ -359,10 +358,13 @@ class ScikitModel(Model):
                 grid.fit(Xs_train_features, Ys_train)
                 grid_results = pd.DataFrame.from_dict(grid.cv_results_)
                 grid_results.to_csv(classifier_output_dir / f'{class_name}_grid_results.csv')
+
                 best_estimator_path = classifier_output_dir / f"best_{class_name}.pkl"
                 joblib.dump(grid.best_estimator_, best_estimator_path)
+
+                best_estimator_results = grid_results.loc[grid.best_index_]
                 best_estimator_results_path = classifier_output_dir / f"best_{class_name}_results.csv"
-                grid_results.loc[grid.best_index_].to_csv(best_estimator_results_path)
+                best_estimator_results.to_csv(best_estimator_results_path)
 
                 # Note: grid.best_score_ == grid_results['mean_test_{metric}'][grid.best_index_] (the mean cross-validated score of the best_estimator)
                 logger.info(
@@ -376,16 +378,7 @@ class ScikitModel(Model):
                     f"AUPRC on held-out: {grid_results['mean_test_auprc'][grid.best_index_]}, "
                     f"F1 on held-out: {grid_results['mean_test_f1'][grid.best_index_]}")
 
-                best_classifiers_metrics[class_name] = (grid.best_index_,
-                                                        grid_results['mean_train_mcc'][grid.best_index_],
-                                                        grid_results['mean_train_auprc'][grid.best_index_],
-                                                        grid_results['mean_train_f1'][grid.best_index_],
-                                                        grid_results['mean_test_mcc'][grid.best_index_],
-                                                        grid_results['mean_test_auprc'][grid.best_index_],
-                                                        grid_results['mean_test_f1'][grid.best_index_],
-                                                        best_estimator_path,
-                                                        best_estimator_results_path,
-                                                        )
+                best_classifiers_metrics[class_name] = best_estimator_results
 
                 if class_name in ['DecisionTreeClassifier', 'RandomForestClassifier', 'GradientBoostingClassifier',
                                   'XGBClassifier']:
@@ -587,20 +580,18 @@ class ScikitModel(Model):
 
         X_train, X_val, y_train, y_val = train_test_split(Xs_train, Ys_train, test_size=0.1, random_state=self.config.random_state)
         _, _, _, _, _, _, final_model_path = self.train_lstm_with_hyperparameters_train_val(
-            final_train_dir, best_model_results['hidden_size'], best_model_results['num_layers'],
-            best_model_results['lr'], best_model_results['batch_size'], X_train, y_train, X_val, y_val, device,
+            final_train_dir, int(best_model_results['hidden_size']), int(best_model_results['num_layers']),
+            best_model_results['lr'], int(best_model_results['batch_size']), X_train, y_train, X_val, y_val, device,
             self.config.metric, self.config.nn_max_epochs)
 
-        best_classifiers_metrics['LSTMClassifier'] = [best_model_index, best_model_results['mean_train_mcc'],
-                                            best_model_results['mean_train_auprc'], best_model_results['mean_train_f1'],
-                                            best_model_results['mean_test_mcc'], best_model_results['mean_test_auprc'],
-                                            best_model_results['mean_test_f1'], final_model_path, best_model_results_path]
+        best_classifiers_metrics['LSTMClassifier'] = best_model_results
 
         # Test final model on test data
         scaler = StandardScaler()
         scaler.fit(X_train)
-        X_test = scaler.transform(Xs_test)
-        test_dataset = TensorDataset(X_test, torch.tensor(Ys_test.values, device=device))
+        Xs_test_scaled = pd.DataFrame(scaler.transform(Xs_test), columns=Xs_test.columns, index=Xs_test.index)
+        X_test_tensor = convert_data_to_tensor_for_rnn(Xs_test_scaled, device)
+        test_dataset = TensorDataset(X_test_tensor, torch.tensor(Ys_test.values, device=device))
         test_data_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
         final_model = LSTMModel.load_from_checkpoint(final_model_path)
         final_model.to(device)
@@ -614,11 +605,11 @@ class ScikitModel(Model):
                                                   X_train, y_train, X_val, y_val, device, metric, nn_max_epochs):
         # Standardize the data
         scaler = StandardScaler()
-        X_train_fold = scaler.fit_transform(X_train)
-        X_val_fold = scaler.transform(X_val)
+        X_train = pd.DataFrame(scaler.fit_transform(X_train), columns=X_train.columns, index=X_train.index)
+        X_val = pd.DataFrame(scaler.transform(X_val), columns=X_val.columns, index=X_val.index)
 
-        X_train_tensor = convert_data_to_tensor_for_rnn(X_train_fold, device)
-        X_val_tensor = convert_data_to_tensor_for_rnn(X_val_fold, device)
+        X_train_tensor = convert_data_to_tensor_for_rnn(X_train, device)
+        X_val_tensor = convert_data_to_tensor_for_rnn(X_val, device)
 
         train_dataset = TensorDataset(X_train_tensor, torch.tensor(y_train.values, device=device))
         val_dataset = TensorDataset(X_val_tensor, torch.tensor(y_val.values, device=device))
@@ -665,7 +656,7 @@ class ScikitModel(Model):
 
     def train_lstm_with_hyperparameters_cv(self, logger, classifier_output_dir, hidden_size, num_layers, lr, batch_size,
                                            X_train, y_train, device, metric, nn_max_epochs, cv_splitter):
-        grid_combination_dir = classifier_output_dir / f'hidden_size_{hidden_size}_num_layers_{num_layers}_lr_{lr}_batch_size_{batch_size}'
+        grid_combination_dir = classifier_output_dir / f'hs_{hidden_size}_nl_{num_layers}_lr_{lr}_bs_{batch_size}'
         grid_combination_dir.mkdir(exist_ok=True, parents=True)
 
         logger.info(f"Training LSTM with hidden_size={hidden_size}, num_layers={num_layers}, lr={lr}, batch_size={batch_size}, "
@@ -686,18 +677,18 @@ class ScikitModel(Model):
                                                                X_train_fold, y_train_fold, X_val_fold, y_val_fold,
                                                                device, metric, nn_max_epochs)
 
-            results[f'split_{fold_id}_train_mcc'] = train_mcc
-            results[f'split_{fold_id}_train_f1'] = train_f1
-            results[f'split_{fold_id}_train_auprc'] = train_auprc
-            results[f'split_{fold_id}_test_mcc'] = val_mcc
-            results[f'split_{fold_id}_test_f1'] = val_f1
-            results[f'split_{fold_id}_test_auprc'] = val_auprc
+            results[f'split{fold_id}_train_mcc'] = train_mcc
+            results[f'split{fold_id}_train_f1'] = train_f1
+            results[f'split{fold_id}_train_auprc'] = train_auprc
+            results[f'split{fold_id}_test_mcc'] = val_mcc
+            results[f'split{fold_id}_test_f1'] = val_f1
+            results[f'split{fold_id}_test_auprc'] = val_auprc
 
-        results[f'mean_train_mcc'] = np.mean([results[f'split_{fold_id}_train_mcc'] for fold_id in range(cv_splitter.n_splits)])
-        results[f'mean_train_f1'] = np.mean([results[f'split_{fold_id}_train_f1'] for fold_id in range(cv_splitter.n_splits)])
-        results[f'mean_train_auprc'] = np.mean([results[f'split_{fold_id}_train_auprc'] for fold_id in range(cv_splitter.n_splits)])
-        results[f'mean_test_mcc'] = np.mean([results[f'split_{fold_id}_test_mcc'] for fold_id in range(cv_splitter.n_splits)])
-        results[f'mean_test_f1'] = np.mean([results[f'split_{fold_id}_test_f1'] for fold_id in range(cv_splitter.n_splits)])
-        results[f'mean_test_auprc'] = np.mean([results[f'split_{fold_id}_test_auprc'] for fold_id in range(cv_splitter.n_splits)])
+        results[f'mean_train_mcc'] = np.mean([results[f'split{fold_id}_train_mcc'] for fold_id in range(cv_splitter.n_splits)])
+        results[f'mean_train_f1'] = np.mean([results[f'split{fold_id}_train_f1'] for fold_id in range(cv_splitter.n_splits)])
+        results[f'mean_train_auprc'] = np.mean([results[f'split{fold_id}_train_auprc'] for fold_id in range(cv_splitter.n_splits)])
+        results[f'mean_test_mcc'] = np.mean([results[f'split{fold_id}_test_mcc'] for fold_id in range(cv_splitter.n_splits)])
+        results[f'mean_test_f1'] = np.mean([results[f'split{fold_id}_test_f1'] for fold_id in range(cv_splitter.n_splits)])
+        results[f'mean_test_auprc'] = np.mean([results[f'split{fold_id}_test_auprc'] for fold_id in range(cv_splitter.n_splits)])
 
         return results
