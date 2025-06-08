@@ -28,7 +28,7 @@ METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS = ['f1'] if not DEBUG_MODE else ['f1']
 TEST_SET_SIZE = 0.2
 NUMBER_OF_DAYS_TO_CONSIDER = [1, 2, 3, 4] if not DEBUG_MODE else [3, 4]
 BALANCE_CLASSES_IN_TRAINING = [False, True] if not DEBUG_MODE else [False]
-NN_MAX_EPOCHS = 10 if not DEBUG_MODE else 1
+NN_MAX_EPOCHS = 15 if not DEBUG_MODE else 1
 MAX_CLASS_RATIO = 0.25  # Relevant only if BALANCE_CLASSES_IN_TRAINING is True
 
 METRIC_NAME_TO_SKLEARN_SCORER = {'mcc': make_scorer(matthews_corrcoef), 'f1': 'f1', 'auprc': 'average_precision'}
