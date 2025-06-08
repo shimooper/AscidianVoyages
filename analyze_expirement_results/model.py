@@ -10,6 +10,7 @@ import re
 import seaborn as sns
 import numpy as np
 import matplotlib.pyplot as plt
+from sklearn.tree import export_graphviz
 
 import sklearn
 from sklearn.model_selection import GridSearchCV, StratifiedKFold, cross_val_score, PredefinedSplit
@@ -28,7 +29,7 @@ from sklearn.model_selection import train_test_split
 
 from imblearn.combine import SMOTETomek
 from imblearn.under_sampling import RandomUnderSampler
-from imblearn.pipeline import Pipeline
+from imblearn.pipeline import Pipeline as IMBPipeline
 
 import torch
 from torch.utils.data import DataLoader, TensorDataset
@@ -74,9 +75,9 @@ class Model:
                 new_row = [*temperature_values, *salinity_values, *time_values, any(row[lived_cols_to_consider])]
                 days_data.append(new_row)
 
-        days_df = pd.DataFrame(days_data, columns=['Temperature 1', 'Temperature 2', 'Temperature 3', 'Temperature 4',
-                                                   'Salinity 1', 'Salinity 2', 'Salinity 3', 'Salinity 4',
-                                                   'Time 1', 'Time 2', 'Time 3', 'Time 4',
+        days_df = pd.DataFrame(days_data, columns=[*[f'Temperature {i}' for i in range(1, self.number_of_days_to_consider + 1)],
+                                                   *[f'Salinity {i}' for i in range(1, self.number_of_days_to_consider + 1)],
+                                                   *[f'Time {i}' for i in range(1, self.number_of_days_to_consider + 1)],
                                                    'death'])
         convert_columns_to_int(days_df)
 
@@ -142,24 +143,40 @@ class Model:
     def plot_feature_importance(classifier_name, feature_names, features_importance, output_dir):
         indices = np.argsort(features_importance)[::-1]
         plt.figure(figsize=(10, 6))
-        plt.title("Feature Importance")
         plt.bar(list(range(len(feature_names))), features_importance[indices], align="center")
-        plt.xticks(list(range(len(feature_names))), [feature_names[i] for i in indices], rotation=45, ha="right")
+        plt.xticks(list(range(len(feature_names))), [feature_names[i] for i in indices], fontsize=12)
+        plt.xlabel('Features', fontsize=14)
+        plt.ylabel('Feature Importance', fontsize=14)
         plt.tight_layout()
         plt.savefig(output_dir / f'{classifier_name}_feature_importance.png', dpi=600)
         plt.close()
 
     @staticmethod
     def plot_decision_tree(model, feature_names, output_dir):
+        export_graphviz(
+            model,
+            out_file=str(output_dir / 'DecisionTreeClassifier_plot.dot'),
+            feature_names=feature_names,
+            class_names=['Alive', 'Dead'],
+            max_depth=2,
+            impurity=False,
+            filled=True,  # Color nodes by class
+            rounded=True,  # Rounded corners
+            special_characters=True,
+        )
+
         plt.figure(figsize=(24, 16))
         plot_tree(
             model,
             feature_names=feature_names,  # Custom feature names
-            class_names=["Alive", "Death"],  # Class names
+            class_names=['Alive', 'Dead'],  # Class names
+            max_depth=2,
+            impurity=False,
             filled=True,  # Color nodes by class
             rounded=True,  # Rounded corners
-            fontsize=14  # Font size
+            fontsize=16,  # Font size,
         )
+
         plt.savefig(output_dir / 'DecisionTreeClassifier_plot.png', dpi=600)
         plt.close()
 
@@ -265,12 +282,6 @@ class ScikitModel(Model):
         return rfecv.support_
 
     def fit_and_test(self, logger, Xs_train, Ys_train, Xs_test, Ys_test):
-        # if self.config.balance_classes:
-        #     logger.info(f"Resampling train examples using RandomUnderSampler. Before: {y_train.value_counts()}")
-        #     rus = RandomUnderSampler(random_state=self.config.random_state, sampling_strategy=self.config.max_classes_ratio)
-        #     X_train, y_train = rus.fit_resample(X_train, y_train)
-        #     logger.info(f"After resampling: {y_train.value_counts()}")
-
         cv_splitter = StratifiedKFold(n_splits=5, shuffle=True, random_state=self.config.random_state)
         best_classifiers_metrics = {}
         self.train_tree_models(logger, Xs_train, Ys_train, Xs_test, Ys_test, cv_splitter, best_classifiers_metrics)
@@ -336,15 +347,25 @@ class ScikitModel(Model):
 
         self.plot_univariate_features_with_respect_to_label(Xs_train_features, Xs_test_features, Ys_train, Ys_test)
 
-        classifiers = self.create_classifiers_and_param_grids(Ys_train)
+        classifiers = self.create_classifiers_and_param_grids(Ys_train, self.config.balance_classes)
         for classifier, param_grid in classifiers:
             class_name = classifier.__class__.__name__
             classifier_output_dir = self.model_train_dir / convert_pascal_to_snake_case(class_name)
             classifier_output_dir.mkdir(exist_ok=True, parents=True)
 
             logger.info(f"Training Classifier {class_name} with hyperparameters tuning using GridSearch and StratifiedKFold cross-validation.")
+
+            if self.config.balance_classes:
+                logger.info(f"Resampling train examples using RandomUnderSampler.")
+                estimator = IMBPipeline([
+                    ('undersample', RandomUnderSampler(random_state=self.config.random_state, sampling_strategy=self.config.max_classes_ratio)),
+                    ('clf', classifier)
+                ])
+            else:
+                estimator = classifier
+
             grid = GridSearchCV(
-                estimator=classifier,
+                estimator=estimator,
                 param_grid=param_grid,
                 cv=cv_splitter,
                 scoring=METRIC_NAME_TO_SKLEARN_SCORER,
@@ -359,8 +380,9 @@ class ScikitModel(Model):
                 grid_results = pd.DataFrame.from_dict(grid.cv_results_)
                 grid_results.to_csv(classifier_output_dir / f'{class_name}_grid_results.csv')
 
+                best_estimator = grid.best_estimator_ if not self.config.balance_classes else grid.best_estimator_.named_steps['clf']
                 best_estimator_path = classifier_output_dir / f"best_{class_name}.pkl"
-                joblib.dump(grid.best_estimator_, best_estimator_path)
+                joblib.dump(best_estimator, best_estimator_path)
 
                 best_estimator_results = grid_results.loc[grid.best_index_]
                 best_estimator_results_path = classifier_output_dir / f"best_{class_name}_results.csv"
@@ -383,24 +405,27 @@ class ScikitModel(Model):
                 if class_name in ['DecisionTreeClassifier', 'RandomForestClassifier', 'GradientBoostingClassifier',
                                   'XGBClassifier']:
                     self.plot_feature_importance(class_name, Xs_train_features.columns,
-                                                 grid.best_estimator_.feature_importances_, classifier_output_dir)
+                                                 best_estimator.feature_importances_, classifier_output_dir)
 
-                if class_name == 'DecisionTreeClassifier' and not DEBUG_MODE:
-                    self.plot_decision_tree(grid.best_estimator_, list(Xs_train_features.columns), classifier_output_dir)
-                    if len(Xs_train_features.columns) >= 2:
-                        self.plot_decision_functions_of_features_pairs(Xs_train_features, Ys_train, grid.best_params_,
-                                                                       grid.best_estimator_.feature_importances_,
+                if class_name == 'DecisionTreeClassifier':
+                    self.plot_decision_tree(best_estimator, list(Xs_train_features.columns), classifier_output_dir)
+                    if len(Xs_train_features.columns) >= 2 and not DEBUG_MODE:
+                        best_params = grid.best_params_
+                        if self.config.balance_classes:
+                            best_params = {k.replace('clf__', ''): v for k, v in best_params.items()}
+                        self.plot_decision_functions_of_features_pairs(Xs_train_features, Ys_train, best_params,
+                                                                       best_estimator.feature_importances_,
                                                                        classifier_output_dir)
 
-                Ys_test_predictions = grid.best_estimator_.predict_proba(Xs_test_features)
+                Ys_test_predictions = best_estimator.predict_proba(Xs_test_features)
                 y_pred_probs = Ys_test_predictions[:, 1]
                 y_pred = Ys_test_predictions.argmax(axis=1)
                 self.test_on_test_data(logger, Ys_test, y_pred_probs, y_pred, classifier_output_dir)
 
             except Exception as e:
-                logger.error(f"Failed to train classifier {class_name} with error: {e}")
+                logger.exception(f"Failed to train classifier {class_name} with error: {e}")
 
-    def create_classifiers_and_param_grids(self, Ys_train):
+    def create_classifiers_and_param_grids(self, Ys_train, adjust_to_pipeline=False):
         knn_grid = {
             'n_neighbors': [5, 10],
             'weights': ['uniform', 'distance'],
@@ -454,13 +479,13 @@ class ScikitModel(Model):
                 'min_samples_split': [2],
                 'min_samples_leaf': [1],
                 'random_state': [self.config.random_state],
-                'class_weight': ['balanced'],
+                'class_weight': [None],
                 'bootstrap': [True]
             }
 
         if not DEBUG_MODE:
             decision_tree_grid = {
-                'max_depth': [2, 3],
+                'max_depth': [3, 5],
                 'min_samples_split': [2, 5, 10],
                 'min_samples_leaf': [1, 2, 5],
                 'random_state': [self.config.random_state],
@@ -468,11 +493,11 @@ class ScikitModel(Model):
             }
         else:
             decision_tree_grid = {
-                'max_depth': [5],
+                'max_depth': [3],
                 'min_samples_split': [2],
                 'min_samples_leaf': [1],
                 'random_state': [self.config.random_state],
-                'class_weight': ['balanced'],
+                'class_weight': [None],
             }
 
         if not DEBUG_MODE:
@@ -498,6 +523,12 @@ class ScikitModel(Model):
                 'subsample': [1],
                 'scale_pos_weight': [1],
             }
+
+        if adjust_to_pipeline:
+            # Adjust the grids for pipeline usage
+            rfc_grid = {f'clf__{k}': v for k, v in rfc_grid.items()}
+            decision_tree_grid = {f'clf__{k}': v for k, v in decision_tree_grid.items()}
+            xgboost_grid = {f'clf__{k}': v for k, v in xgboost_grid.items()}
 
         return [
             # (KNeighborsClassifier(), knn_grid),
@@ -580,7 +611,7 @@ class ScikitModel(Model):
 
         X_train, X_val, y_train, y_val = train_test_split(Xs_train, Ys_train, test_size=0.1, random_state=self.config.random_state)
         _, _, _, _, _, _, final_model_path = self.train_lstm_with_hyperparameters_train_val(
-            final_train_dir, int(best_model_results['hidden_size']), int(best_model_results['num_layers']),
+            logger, final_train_dir, int(best_model_results['hidden_size']), int(best_model_results['num_layers']),
             best_model_results['lr'], int(best_model_results['batch_size']), X_train, y_train, X_val, y_val, device,
             self.config.metric, self.config.nn_max_epochs)
 
@@ -601,8 +632,14 @@ class ScikitModel(Model):
             y_pred = (y_pred_probs > 0.5).astype(int)
         self.test_on_test_data(logger, Ys_test, y_pred_probs, y_pred, classifier_output_dir)
 
-    def train_lstm_with_hyperparameters_train_val(self, output_dir, hidden_size, num_layers, lr, batch_size,
+    def train_lstm_with_hyperparameters_train_val(self, logger, output_dir, hidden_size, num_layers, lr, batch_size,
                                                   X_train, y_train, X_val, y_val, device, metric, nn_max_epochs):
+        if self.config.balance_classes:
+            logger.info(f"Resampling train examples using RandomUnderSampler. Before: {y_train.value_counts()}")
+            rus = RandomUnderSampler(random_state=self.config.random_state, sampling_strategy=self.config.max_classes_ratio)
+            X_train, y_train = rus.fit_resample(X_train, y_train)
+            logger.info(f"After resampling: {y_train.value_counts()}")
+
         # Standardize the data
         scaler = StandardScaler()
         X_train = pd.DataFrame(scaler.fit_transform(X_train), columns=X_train.columns, index=X_train.index)
@@ -673,7 +710,7 @@ class ScikitModel(Model):
             y_val_fold = y_train.iloc[test_idx]
 
             train_mcc, train_f1, train_auprc, val_mcc, val_f1, val_auprc, best_model_path = \
-                self.train_lstm_with_hyperparameters_train_val(fold_dir, hidden_size, num_layers, lr, batch_size,
+                self.train_lstm_with_hyperparameters_train_val(logger, fold_dir, hidden_size, num_layers, lr, batch_size,
                                                                X_train_fold, y_train_fold, X_val_fold, y_val_fold,
                                                                device, metric, nn_max_epochs)
 

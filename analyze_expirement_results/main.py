@@ -17,9 +17,6 @@ from utils import plot_models_comparison
 def create_config(flag_combination, configuration_id, cpus, outputs_dir, do_feature_selection):
     include_control_flag, include_suspected_flag, number_of_future_days, stratify_flag, random_state, metric, balance_classes = flag_combination
 
-    if balance_classes:
-        raise NotImplementedError("Balance classes is not implemented yet.")
-
     outputs_dir_path = outputs_dir / f'configuration_{configuration_id}'
     outputs_dir_path.mkdir(exist_ok=True, parents=True)
 
@@ -87,6 +84,9 @@ def aggregate_validation_metrics_of_one_configuration(config: Config):
     classifier_name_to_validation_results = defaultdict(dict)
 
     for model_dir_path in config.models_dir_path.iterdir():
+        if not model_dir_path.is_dir() or not model_dir_path.name.startswith('days_to_consider_'):
+            continue
+
         model_results_path = model_dir_path / 'train_outputs' / 'best_classifier' / 'best_classifier_from_each_class.csv'
         model_results_df = pd.read_csv(model_results_path, index_col='model_name')
         for classifier_name in model_results_df.index.values:

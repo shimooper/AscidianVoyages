@@ -65,7 +65,7 @@ def preprocess_data_by_config(config: Config, routes_df):
     ship_names_and_seasons_no_control = ship_names_and_seasons[ship_names_and_seasons['Name'] != 'CONTROL']
 
     if config.stratify:
-        stratify_column = routes_df['Season']
+        stratify_column = ship_names_and_seasons_no_control['Season']
     else:
         stratify_column = None
 

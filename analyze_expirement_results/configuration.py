@@ -19,15 +19,14 @@ DATA_PATH = DATA_DIR / 'Final_Data_Voyages.xlsx'
 
 INCLUDE_CONTROL_ROUTES = [True]
 INCLUDE_SUSPECTED_ROUTES_PARTS = [True, False] if not DEBUG_MODE else [False]
-STRATIFY_TRAIN_TEST_SPLIT = [True, False] if not DEBUG_MODE else [False]
+STRATIFY_TRAIN_TEST_SPLIT = [True, False] if not DEBUG_MODE else [True]
 # RANDOM_STATE = [0, 42, 123, 99, 2025] if not DEBUG_MODE else [0]
 RANDOM_STATE = [0] if not DEBUG_MODE else [0]
 NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH = [0, 1, 2, 3] if not DEBUG_MODE else [0]
 # METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS = ['f1', 'mcc', 'auprc'] if not DEBUG_MODE else ['f1']
 METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS = ['f1'] if not DEBUG_MODE else ['f1']
 TEST_SET_SIZE = 0.2
-VALIDATION_SET_SIZE = 0.2
-NUMBER_OF_DAYS_TO_CONSIDER = [1, 2, 3, 4] if not DEBUG_MODE else [4]
+NUMBER_OF_DAYS_TO_CONSIDER = [1, 2, 3, 4] if not DEBUG_MODE else [3, 4]
 BALANCE_CLASSES_IN_TRAINING = [False, True] if not DEBUG_MODE else [False]
 NN_MAX_EPOCHS = 10 if not DEBUG_MODE else 1
 MAX_CLASS_RATIO = 0.25  # Relevant only if BALANCE_CLASSES_IN_TRAINING is True
@@ -54,7 +53,6 @@ class Config:
     train_with_optuna: bool = False
     optuna_number_of_trials: int = DEFAULT_OPTUNA_NUMBER_OF_TRIALS
     test_set_size: float = TEST_SET_SIZE
-    validation_set_size: float = VALIDATION_SET_SIZE
     nn_max_epochs: int = NN_MAX_EPOCHS
     balance_classes: bool = False
     max_classes_ratio: float = MAX_CLASS_RATIO  # Relevant only if balance_classes is True

@@ -126,7 +126,7 @@ def plot_models_comparison(results_df, outputs_dir: Path, metric):
 
     plt.figure(figsize=(10, 6))
     sns.set(style="whitegrid", context="paper")
-    palette = sns.color_palette("colorblind", n_colors=len(results_filtered_df.index))
+    palette = sns.color_palette("Set2", n_colors=len(results_filtered_df.index))
 
     sns.barplot(data=results_filtered_melted_df, x='metric', y='score', hue='model_name', palette=palette)
     plt.ylabel('Score', fontsize=14)
