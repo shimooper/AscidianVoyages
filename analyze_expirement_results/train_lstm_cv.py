@@ -1,0 +1,56 @@
+import numpy as np
+from model_lstm import train_lstm_with_hyperparameters_train_val
+
+
+def train_lstm_with_hyperparameters_cv(logger, config, classifier_output_dir, hidden_size, num_layers, lr, batch_size,
+                                       X_train, y_train, device, cv_splitter):
+    grid_combination_dir = classifier_output_dir / f'hs_{hidden_size}_nl_{num_layers}_lr_{lr}_bs_{batch_size}'
+    grid_combination_dir.mkdir(exist_ok=True, parents=True)
+
+    logger.info(
+        f"Training LSTM with hidden_size={hidden_size}, num_layers={num_layers}, lr={lr}, batch_size={batch_size}, "
+        f"using {cv_splitter.n_splits}-fold cross-validation.")
+
+    results = {'hidden_size': hidden_size, 'num_layers': num_layers, 'lr': lr, 'batch_size': batch_size}
+    for fold_id, (train_idx, test_idx) in enumerate(cv_splitter.split(X_train, y_train)):
+        fold_dir = grid_combination_dir / f'fold_{fold_id}'
+        fold_dir.mkdir(exist_ok=True, parents=True)
+
+        X_train_fold = X_train.iloc[train_idx]
+        y_train_fold = y_train.iloc[train_idx]
+        X_val_fold = X_train.iloc[test_idx]
+        y_val_fold = y_train.iloc[test_idx]
+
+        train_mcc, train_f1, train_auprc, val_mcc, val_f1, val_auprc, best_model_path = \
+            train_lstm_with_hyperparameters_train_val(logger, config, fold_dir, hidden_size, num_layers, lr, batch_size,
+                                                           X_train_fold, y_train_fold, X_val_fold, y_val_fold,
+                                                           device)
+
+        results[f'split{fold_id}_train_mcc'] = train_mcc
+        results[f'split{fold_id}_train_f1'] = train_f1
+        results[f'split{fold_id}_train_auprc'] = train_auprc
+        results[f'split{fold_id}_test_mcc'] = val_mcc
+        results[f'split{fold_id}_test_f1'] = val_f1
+        results[f'split{fold_id}_test_auprc'] = val_auprc
+
+    results[f'mean_train_mcc'] = np.mean(
+        [results[f'split{fold_id}_train_mcc'] for fold_id in range(cv_splitter.n_splits)])
+    results[f'mean_train_f1'] = np.mean(
+        [results[f'split{fold_id}_train_f1'] for fold_id in range(cv_splitter.n_splits)])
+    results[f'mean_train_auprc'] = np.mean(
+        [results[f'split{fold_id}_train_auprc'] for fold_id in range(cv_splitter.n_splits)])
+    results[f'mean_test_mcc'] = np.mean(
+        [results[f'split{fold_id}_test_mcc'] for fold_id in range(cv_splitter.n_splits)])
+    results[f'mean_test_f1'] = np.mean([results[f'split{fold_id}_test_f1'] for fold_id in range(cv_splitter.n_splits)])
+    results[f'mean_test_auprc'] = np.mean(
+        [results[f'split{fold_id}_test_auprc'] for fold_id in range(cv_splitter.n_splits)])
+
+    return results
+
+
+def main():
+    pass
+
+
+if __name__ == "__main__":
+    main()

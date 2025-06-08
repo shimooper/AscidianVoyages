@@ -21,4 +21,4 @@ source ~/miniconda/etc/profile.d/conda.sh
 conda activate ships
 export PATH=$CONDA_PREFIX/bin:$PATH
 
-python ~/ships/analyze_expirement_results/main.py --cpus $SLURM_JOB_CPUS_PER_NODE --outputs_dir_name outputs_cv --run_configurations_in_parallel True
+python ~/ships/analyze_expirement_results/main.py --cpus $SLURM_JOB_CPUS_PER_NODE --outputs_dir_name outputs_cv2 --run_configurations_in_parallel True --run_lstm_configurations_in_parallel True

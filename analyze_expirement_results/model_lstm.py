@@ -1,10 +1,16 @@
-import numpy as np
+import pandas as pd
 from sklearn.metrics import matthews_corrcoef, average_precision_score, f1_score
+from sklearn.preprocessing import StandardScaler
+from imblearn.under_sampling import RandomUnderSampler
 
 import torch
+from torch.utils.data import DataLoader, TensorDataset
 import torch.nn as nn
 import torch.optim as optim
 import lightning as L
+from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
+
+from utils import convert_data_to_tensor_for_rnn
 
 
 # Define LSTM model using PyTorch Lightning
@@ -54,21 +60,61 @@ class LSTMModel(L.LightningModule):
         return optim.Adam(self.parameters(), lr=self.lr)
 
 
+def train_lstm_with_hyperparameters_train_val(logger, config, output_dir, hidden_size, num_layers, lr, batch_size,
+                                              X_train, y_train, X_val, y_val, device):
+    if config.balance_classes:
+        logger.info(f"Resampling train examples using RandomUnderSampler. Before: {y_train.value_counts()}")
+        rus = RandomUnderSampler(random_state=config.random_state, sampling_strategy=config.max_classes_ratio)
+        X_train, y_train = rus.fit_resample(X_train, y_train)
+        logger.info(f"After resampling: {y_train.value_counts()}")
 
+    # Standardize the data
+    scaler = StandardScaler()
+    X_train = pd.DataFrame(scaler.fit_transform(X_train), columns=X_train.columns, index=X_train.index)
+    X_val = pd.DataFrame(scaler.transform(X_val), columns=X_val.columns, index=X_val.index)
 
+    X_train_tensor = convert_data_to_tensor_for_rnn(X_train, device)
+    X_val_tensor = convert_data_to_tensor_for_rnn(X_val, device)
 
-# # Load model and run inference
-# def load_model_and_predict(X_test):
-#     model = LSTMModel(hidden_size=best_params['hidden_size'], lr=best_params['lr']).to(device)
-#     model.load_state_dict(torch.load('final_lstm_model.pth'))
-#     model.eval()
-#     X_test_tensor = torch.tensor(X_test).to(device)
-#     with torch.no_grad():
-#         predictions = (model(X_test_tensor) > 0.5).cpu().numpy().astype(int).flatten()
-#     return predictions
-#
-#
-# # Example usage
-# X_test = np.random.rand(10, 4, 2).astype(np.float32)  # Replace with real test data
-# predictions = load_model_and_predict(X_test)
-# print("Predictions:", predictions)
+    train_dataset = TensorDataset(X_train_tensor, torch.tensor(y_train.values, device=device))
+    val_dataset = TensorDataset(X_val_tensor, torch.tensor(y_val.values, device=device))
+
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=len(val_dataset), shuffle=False)
+
+    model = LSTMModel(hidden_size=hidden_size, num_layers=num_layers, lr=lr)
+    model.to(device)
+
+    checkpoint_callback = ModelCheckpoint(monitor=f'val_{config.metric}', mode='max', save_top_k=1,
+                                          dirpath=output_dir / 'checkpoints',
+                                          filename='best_model-epoch-{epoch}')
+    trainer = L.Trainer(
+        max_epochs=config.nn_max_epochs,
+        logger=True,
+        default_root_dir=output_dir,  # logs directory
+        callbacks=[EarlyStopping(monitor=f'val_loss', patience=3, mode='min'), checkpoint_callback],
+        deterministic=True
+    )
+    trainer.fit(model, train_loader, val_loader)
+
+    best_model_path = checkpoint_callback.best_model_path
+    best_model = LSTMModel.load_from_checkpoint(best_model_path)
+    best_model.to(device)
+    best_model.eval()
+
+    with torch.no_grad():
+        train_loader_for_evaluation = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
+        y_train_pred_probs = torch.cat(
+            [best_model(x) for x, _ in train_loader_for_evaluation]).cpu().numpy().flatten()
+        y_train_pred = (y_train_pred_probs > 0.5).astype(int)
+        y_val_pred_probs = torch.cat([best_model(x) for x, _ in val_loader]).cpu().numpy().flatten()
+        y_val_pred = (y_val_pred_probs > 0.5).astype(int)
+
+    train_mcc = matthews_corrcoef(y_train, y_train_pred)
+    train_f1 = f1_score(y_train, y_train_pred)
+    train_auprc = average_precision_score(y_train, y_train_pred_probs)
+    val_mcc = matthews_corrcoef(y_val, y_val_pred)
+    val_f1 = f1_score(y_val, y_val_pred)
+    val_auprc = average_precision_score(y_val, y_val_pred_probs)
+
+    return train_mcc, train_f1, train_auprc, val_mcc, val_f1, val_auprc, best_model_path

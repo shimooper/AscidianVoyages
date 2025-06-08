@@ -27,20 +27,19 @@ from sklearn.feature_selection import RFECV
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 
-from imblearn.combine import SMOTETomek
 from imblearn.under_sampling import RandomUnderSampler
 from imblearn.pipeline import Pipeline as IMBPipeline
 
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 import lightning as L
-from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 
 from utils import setup_logger, convert_pascal_to_snake_case, get_column_groups_sorted, convert_columns_to_int, \
     get_lived_columns_to_consider, merge_dicts_average, convert_data_to_tensor_for_rnn, \
     plot_models_comparison, SURVIVAL_COLORS
 from configuration import METRIC_NAME_TO_SKLEARN_SCORER, DEBUG_MODE, Config
-from model_lstm import LSTMModel
+from model_lstm import LSTMModel, train_lstm_with_hyperparameters_train_val
+from train_lstm_cv import train_lstm_with_hyperparameters_cv
 
 
 class Model:
@@ -573,9 +572,9 @@ class ScikitModel(Model):
                                                                                  hyperparameter_grid['num_layers'],
                                                                                  hyperparameter_grid['lr'],
                                                                                  hyperparameter_grid['batch_size']):
-                    futures.append(executor.submit(self.train_lstm_with_hyperparameters_cv, logger, classifier_output_dir,
+                    futures.append(executor.submit(train_lstm_with_hyperparameters_cv, logger, self.config, classifier_output_dir,
                                                    hidden_size, num_layers, lr, batch_size, Xs_train, Ys_train,
-                                                   device, self.config.metric, self.config.nn_max_epochs, cv_splitter))
+                                                   device, cv_splitter))
 
                 for future in as_completed(futures):
                     # Append result to the results list
@@ -585,10 +584,10 @@ class ScikitModel(Model):
                                                                              hyperparameter_grid['num_layers'],
                                                                              hyperparameter_grid['lr'],
                                                                              hyperparameter_grid['batch_size']):
-                result = self.train_lstm_with_hyperparameters_cv(logger, classifier_output_dir,
+                result = train_lstm_with_hyperparameters_cv(logger, self.config, classifier_output_dir,
                                                               hidden_size, num_layers, lr, batch_size,
                                                               Xs_train, Ys_train,
-                                                              device, self.config.metric, self.config.nn_max_epochs, cv_splitter)
+                                                              device, cv_splitter)
                 all_results.append(result)
 
         # Save all hyperparameter results to CSV
@@ -610,10 +609,9 @@ class ScikitModel(Model):
         final_train_dir.mkdir(exist_ok=True, parents=True)
 
         X_train, X_val, y_train, y_val = train_test_split(Xs_train, Ys_train, test_size=0.1, random_state=self.config.random_state)
-        _, _, _, _, _, _, final_model_path = self.train_lstm_with_hyperparameters_train_val(
-            logger, final_train_dir, int(best_model_results['hidden_size']), int(best_model_results['num_layers']),
-            best_model_results['lr'], int(best_model_results['batch_size']), X_train, y_train, X_val, y_val, device,
-            self.config.metric, self.config.nn_max_epochs)
+        _, _, _, _, _, _, final_model_path = train_lstm_with_hyperparameters_train_val(
+            logger, self.config, final_train_dir, int(best_model_results['hidden_size']), int(best_model_results['num_layers']),
+            best_model_results['lr'], int(best_model_results['batch_size']), X_train, y_train, X_val, y_val, device)
 
         best_classifiers_metrics['LSTMClassifier'] = best_model_results
 
@@ -631,101 +629,3 @@ class ScikitModel(Model):
             y_pred_probs = torch.cat([final_model(x) for x, _ in test_data_loader]).cpu().numpy().flatten()
             y_pred = (y_pred_probs > 0.5).astype(int)
         self.test_on_test_data(logger, Ys_test, y_pred_probs, y_pred, classifier_output_dir)
-
-    def train_lstm_with_hyperparameters_train_val(self, logger, output_dir, hidden_size, num_layers, lr, batch_size,
-                                                  X_train, y_train, X_val, y_val, device, metric, nn_max_epochs):
-        if self.config.balance_classes:
-            logger.info(f"Resampling train examples using RandomUnderSampler. Before: {y_train.value_counts()}")
-            rus = RandomUnderSampler(random_state=self.config.random_state, sampling_strategy=self.config.max_classes_ratio)
-            X_train, y_train = rus.fit_resample(X_train, y_train)
-            logger.info(f"After resampling: {y_train.value_counts()}")
-
-        # Standardize the data
-        scaler = StandardScaler()
-        X_train = pd.DataFrame(scaler.fit_transform(X_train), columns=X_train.columns, index=X_train.index)
-        X_val = pd.DataFrame(scaler.transform(X_val), columns=X_val.columns, index=X_val.index)
-
-        X_train_tensor = convert_data_to_tensor_for_rnn(X_train, device)
-        X_val_tensor = convert_data_to_tensor_for_rnn(X_val, device)
-
-        train_dataset = TensorDataset(X_train_tensor, torch.tensor(y_train.values, device=device))
-        val_dataset = TensorDataset(X_val_tensor, torch.tensor(y_val.values, device=device))
-
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-        val_loader = DataLoader(val_dataset, batch_size=len(val_dataset), shuffle=False)
-
-        model = LSTMModel(hidden_size=hidden_size, num_layers=num_layers, lr=lr)
-        model.to(device)
-
-        checkpoint_callback = ModelCheckpoint(monitor=f'val_{metric}', mode='max', save_top_k=1,
-                                              dirpath=output_dir / 'checkpoints',
-                                              filename='best_model-epoch-{epoch}')
-        trainer = L.Trainer(
-            max_epochs=nn_max_epochs,
-            logger=True,
-            default_root_dir=output_dir,  # logs directory
-            callbacks=[EarlyStopping(monitor=f'val_loss', patience=3, mode='min'), checkpoint_callback],
-            deterministic=True
-        )
-        trainer.fit(model, train_loader, val_loader)
-
-        best_model_path = checkpoint_callback.best_model_path
-        best_model = LSTMModel.load_from_checkpoint(best_model_path)
-        best_model.to(device)
-        best_model.eval()
-
-        with torch.no_grad():
-            train_loader_for_evaluation = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
-            y_train_pred_probs = torch.cat(
-                [best_model(x) for x, _ in train_loader_for_evaluation]).cpu().numpy().flatten()
-            y_train_pred = (y_train_pred_probs > 0.5).astype(int)
-            y_val_pred_probs = torch.cat([best_model(x) for x, _ in val_loader]).cpu().numpy().flatten()
-            y_val_pred = (y_val_pred_probs > 0.5).astype(int)
-
-        train_mcc = matthews_corrcoef(y_train, y_train_pred)
-        train_f1 = f1_score(y_train, y_train_pred)
-        train_auprc = average_precision_score(y_train, y_train_pred_probs)
-        val_mcc = matthews_corrcoef(y_val, y_val_pred)
-        val_f1 = f1_score(y_val, y_val_pred)
-        val_auprc = average_precision_score(y_val, y_val_pred_probs)
-
-        return train_mcc, train_f1, train_auprc, val_mcc, val_f1, val_auprc, best_model_path
-
-    def train_lstm_with_hyperparameters_cv(self, logger, classifier_output_dir, hidden_size, num_layers, lr, batch_size,
-                                           X_train, y_train, device, metric, nn_max_epochs, cv_splitter):
-        grid_combination_dir = classifier_output_dir / f'hs_{hidden_size}_nl_{num_layers}_lr_{lr}_bs_{batch_size}'
-        grid_combination_dir.mkdir(exist_ok=True, parents=True)
-
-        logger.info(f"Training LSTM with hidden_size={hidden_size}, num_layers={num_layers}, lr={lr}, batch_size={batch_size}, "
-                    f"using {cv_splitter.n_splits}-fold cross-validation.")
-
-        results = {'hidden_size': hidden_size, 'num_layers': num_layers, 'lr': lr, 'batch_size': batch_size}
-        for fold_id, (train_idx, test_idx) in enumerate(cv_splitter.split(X_train, y_train)):
-            fold_dir = grid_combination_dir / f'fold_{fold_id}'
-            fold_dir.mkdir(exist_ok=True, parents=True)
-
-            X_train_fold = X_train.iloc[train_idx]
-            y_train_fold = y_train.iloc[train_idx]
-            X_val_fold = X_train.iloc[test_idx]
-            y_val_fold = y_train.iloc[test_idx]
-
-            train_mcc, train_f1, train_auprc, val_mcc, val_f1, val_auprc, best_model_path = \
-                self.train_lstm_with_hyperparameters_train_val(logger, fold_dir, hidden_size, num_layers, lr, batch_size,
-                                                               X_train_fold, y_train_fold, X_val_fold, y_val_fold,
-                                                               device, metric, nn_max_epochs)
-
-            results[f'split{fold_id}_train_mcc'] = train_mcc
-            results[f'split{fold_id}_train_f1'] = train_f1
-            results[f'split{fold_id}_train_auprc'] = train_auprc
-            results[f'split{fold_id}_test_mcc'] = val_mcc
-            results[f'split{fold_id}_test_f1'] = val_f1
-            results[f'split{fold_id}_test_auprc'] = val_auprc
-
-        results[f'mean_train_mcc'] = np.mean([results[f'split{fold_id}_train_mcc'] for fold_id in range(cv_splitter.n_splits)])
-        results[f'mean_train_f1'] = np.mean([results[f'split{fold_id}_train_f1'] for fold_id in range(cv_splitter.n_splits)])
-        results[f'mean_train_auprc'] = np.mean([results[f'split{fold_id}_train_auprc'] for fold_id in range(cv_splitter.n_splits)])
-        results[f'mean_test_mcc'] = np.mean([results[f'split{fold_id}_test_mcc'] for fold_id in range(cv_splitter.n_splits)])
-        results[f'mean_test_f1'] = np.mean([results[f'split{fold_id}_test_f1'] for fold_id in range(cv_splitter.n_splits)])
-        results[f'mean_test_auprc'] = np.mean([results[f'split{fold_id}_test_auprc'] for fold_id in range(cv_splitter.n_splits)])
-
-        return results

@@ -14,7 +14,7 @@ from model import ScikitModel
 from utils import plot_models_comparison
 
 
-def create_config(flag_combination, configuration_id, cpus, outputs_dir, do_feature_selection):
+def create_config(flag_combination, configuration_id, cpus, outputs_dir, do_feature_selection, run_lstm_configurations_in_parallel):
     include_control_flag, include_suspected_flag, number_of_future_days, stratify_flag, random_state, metric, balance_classes = flag_combination
 
     outputs_dir_path = outputs_dir / f'configuration_{configuration_id}'
@@ -34,6 +34,7 @@ def create_config(flag_combination, configuration_id, cpus, outputs_dir, do_feat
         models_dir_path=outputs_dir_path / 'models',
         do_feature_selection=do_feature_selection,
         balance_classes=balance_classes,
+        run_lstm_configurations_in_parallel=run_lstm_configurations_in_parallel
     )
     config.to_csv(outputs_dir_path / 'config.csv')
 
@@ -58,7 +59,7 @@ def run_analysis_of_one_config(config: Config):
     aggregate_validation_metrics_of_one_configuration(config)
 
 
-def main(outputs_dir, cpus, do_feature_selection, run_configurations_in_parallel):
+def main(outputs_dir, cpus, do_feature_selection, run_configurations_in_parallel, run_lstm_configurations_in_parallel):
     flags_combinations = list(itertools.product(
         INCLUDE_CONTROL_ROUTES, INCLUDE_SUSPECTED_ROUTES_PARTS, NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH,
         STRATIFY_TRAIN_TEST_SPLIT, RANDOM_STATE, METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS, BALANCE_CLASSES_IN_TRAINING))
@@ -68,12 +69,12 @@ def main(outputs_dir, cpus, do_feature_selection, run_configurations_in_parallel
         with ProcessPoolExecutor(max_workers=cpus) as executor:
             for flags_combination in flags_combinations:
                 config = create_config(flags_combination, configuration_id, max(1, cpus // len(flags_combinations)),
-                                       outputs_dir, do_feature_selection)
+                                       outputs_dir, do_feature_selection, run_lstm_configurations_in_parallel)
                 executor.submit(run_analysis_of_one_config, config)
                 configuration_id += 1
     else:
         for flags_combination in flags_combinations:
-            config = create_config(flags_combination, configuration_id, cpus, outputs_dir, do_feature_selection)
+            config = create_config(flags_combination, configuration_id, cpus, outputs_dir, do_feature_selection, run_lstm_configurations_in_parallel)
             run_analysis_of_one_config(config)
             configuration_id += 1
 
@@ -107,6 +108,8 @@ if __name__ == "__main__":
     parser.add_argument('--cpus', type=int, default=1, help='Number of CPUs to use')
     parser.add_argument('--do_feature_selection', type=str_to_bool, default=False)
     parser.add_argument('--run_configurations_in_parallel', type=str_to_bool, default=False)
+    parser.add_argument('--run_lstm_configurations_in_parallel', type=str_to_bool, default=False)
 
     args = parser.parse_args()
-    main(SCRIPT_DIR / args.outputs_dir_name, args.cpus, args.do_feature_selection, args.run_configurations_in_parallel)
+    main(SCRIPT_DIR / args.outputs_dir_name, args.cpus, args.do_feature_selection, args.run_configurations_in_parallel,
+         args.run_lstm_configurations_in_parallel)
