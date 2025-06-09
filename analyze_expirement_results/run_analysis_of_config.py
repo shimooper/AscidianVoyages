@@ -21,8 +21,10 @@ def run_analysis_of_one_config(logger, config: Config):
 
     model_id = 0
     for interval_length in INTERVAL_LENGTH:
+        logger.info(f'Running analysis for interval length: {interval_length}')
         model_instance = ScikitModel(config, model_id, interval_length)
         model_instance.run_analysis(logger)
+        logger.info(f'Analysis for interval length {interval_length} completed.')
         model_id += 1
 
     aggregate_validation_metrics_of_one_configuration(config)

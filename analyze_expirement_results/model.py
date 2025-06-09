@@ -46,7 +46,7 @@ class Model:
         self.model_id = model_id
         self.interval_length = interval_length
 
-        output_dir_path = config.models_dir_path / f'{interval_length}_day_intervals'
+        output_dir_path = config.models_dir_path / f'{interval_length}_day_interval'
         self.model_data_dir = output_dir_path / 'data'
         self.model_train_dir = output_dir_path / 'train_outputs'
         self.model_data_dir.mkdir(exist_ok=True, parents=True)
