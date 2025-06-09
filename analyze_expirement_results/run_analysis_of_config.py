@@ -34,7 +34,7 @@ def aggregate_validation_metrics_of_one_configuration(config: Config):
     classifier_name_to_validation_results = defaultdict(dict)
 
     for model_dir_path in config.models_dir_path.iterdir():
-        if not model_dir_path.is_dir() or not model_dir_path.name.endswith('intervals'):
+        if not model_dir_path.is_dir() or not model_dir_path.name.endswith('day_interval'):
             continue
 
         model_results_path = model_dir_path / 'train_outputs' / 'best_classifier' / 'best_classifier_from_each_class.csv'

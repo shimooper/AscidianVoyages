@@ -241,7 +241,7 @@ class Model:
             f"Best estimator - MCC on test: {mcc_on_test}, AUPRC on test: {auprc_on_test}, F1 on test: {f1_on_test}")
 
         test_results = pd.DataFrame({'mcc': [mcc_on_test], 'auprc': [auprc_on_test], 'f1': [f1_on_test]})
-        test_results.to_csv(output_dir / 'best_classifier_test_results.csv', index=False)
+        test_results.to_csv(output_dir / 'final_classifier_test_results.csv', index=False)
 
 
 class ScikitModel(Model):
@@ -474,7 +474,7 @@ class ScikitModel(Model):
             }
         else:
             rfc_grid = {
-                'n_estimators': [5],
+                'n_estimators': [5, 10],
                 'max_depth': [None],
                 'min_samples_split': [2],
                 'min_samples_leaf': [1],
@@ -493,7 +493,7 @@ class ScikitModel(Model):
             }
         else:
             decision_tree_grid = {
-                'max_depth': [3],
+                'max_depth': [3, 5],
                 'min_samples_split': [2],
                 'min_samples_leaf': [1],
                 'random_state': [self.config.random_state],
@@ -515,7 +515,7 @@ class ScikitModel(Model):
         else:
             xgboost_grid = {
                 'learning_rate': [0.01],
-                'n_estimators': [10],
+                'n_estimators': [5, 10],
                 'max_depth': [3],
                 'booster': ['dart'],
                 'n_jobs': [1],
@@ -559,7 +559,7 @@ class ScikitModel(Model):
             hyperparameter_grid = {
                 'hidden_size': [8],
                 'num_layers': [1],
-                'lr': [1e-4],
+                'lr': [1e-4, 1e-3],
                 'batch_size': [32]
             }
 
@@ -587,7 +587,7 @@ class ScikitModel(Model):
                 if grid_combination_dir.name.startswith('hs_'):
                     df = pd.read_csv(grid_combination_dir / 'results.csv', index_col=0).squeeze('columns')
                     all_results.append(df)
-            results_df = pd.DataFrame(all_results)
+            results_df = pd.DataFrame(all_results).reset_index(drop=True)
         else:
             all_results = []
             for hidden_size, num_layers, lr, batch_size in itertools.product(hyperparameter_grid['hidden_size'],
