@@ -1,9 +1,7 @@
-import os
 import pandas as pd
 import logging
 import re
 from pathlib import Path
-from collections import defaultdict
 import numpy as np
 import torch
 import seaborn as sns
@@ -36,24 +34,13 @@ def variable_equals_value(variable, value):
     return pd.notna(variable) and variable == value
 
 
-def setup_logger(log_file, logger_name, level=logging.INFO):
-    if os.path.exists(log_file):
-        os.remove(log_file)
-
-    # Create a logger
+def get_logger(log_file_path, logger_name, verbose: bool):
     logger = logging.getLogger(logger_name)
-    logger.setLevel(level)
-
-    # Create file handler
-    file_handler = logging.FileHandler(log_file)
-    file_handler.setLevel(level)
-
-    # Create a formatter and set it for the file handler
+    file_handler = logging.FileHandler(log_file_path, mode='a')
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     file_handler.setFormatter(formatter)
-
-    # Add the file handler to the logger
     logger.addHandler(file_handler)
+    logger.setLevel(logging.DEBUG if verbose else logging.INFO)
 
     return logger
 
@@ -84,20 +71,6 @@ def get_lived_columns_to_consider(row, day, number_of_future_days_to_consider_de
                               for offset in range(0, number_of_future_days_to_consider_death + 1)
                               if f'Lived {day + offset}' in row.index and pd.notna(row[f'Lived {day + offset}'])]
     return lived_cols_to_consider
-
-
-def merge_dicts_average(dict_list):
-    sum_dict = defaultdict(float)
-    count_dict = defaultdict(int)
-
-    # Sum values and count occurrences
-    for d in dict_list:
-        for key, value in d.items():
-            sum_dict[key] += value
-            count_dict[key] += 1
-
-    # Compute the average
-    return {METRICS_NAME_TO_AVERAGE_METRIC_NAME[key]: sum_dict[key] / count_dict[key] for key in sum_dict}
 
 
 def convert_data_to_tensor_for_rnn(X_df, device):

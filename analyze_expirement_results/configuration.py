@@ -13,9 +13,11 @@ elif platform.system() == "Windows":
 else:
     raise Exception(f"Unsupported platform: {platform.system()}")
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-DATA_DIR = SCRIPT_DIR / 'data'
+ROOT_DIR = Path(__file__).resolve().parent
+DATA_DIR = ROOT_DIR / 'data'
 DATA_PATH = DATA_DIR / 'Final_Data_Voyages.xlsx'
+PROCESSED_DATA_DIR = DATA_DIR / 'preprocess'
+PROCESSED_DATA_PATH = PROCESSED_DATA_DIR / 'Final_Data_Voyages_Processed_30.csv'
 
 INCLUDE_CONTROL_ROUTES = [True]
 INCLUDE_SUSPECTED_ROUTES_PARTS = [True, False] if not DEBUG_MODE else [False]
@@ -38,6 +40,7 @@ DEFAULT_OPTUNA_NUMBER_OF_TRIALS = 1000 if not DEBUG_MODE else 10
 
 @dataclass
 class Config:
+    error_file_path: Path
     include_control_routes: bool
     include_suspected_routes: bool
     number_of_future_days_to_consider_death: int

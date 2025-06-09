@@ -2,19 +2,16 @@ import re
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-from utils import variable_equals_value, setup_logger, get_column_groups_sorted
-from configuration import DATA_DIR, DATA_PATH, Config
+from utils import variable_equals_value, get_column_groups_sorted
+from configuration import DATA_PATH, Config, PROCESSED_DATA_DIR, PROCESSED_DATA_PATH
 
 
-def get_preprocessed_data():
-    outputs_preprocess_dir = DATA_DIR / 'preprocess'
-    data_processed_path = outputs_preprocess_dir / 'Final_Data_Voyages_Processed_30.csv'
+def preprocess_data(logger):
+    if PROCESSED_DATA_PATH.exists():
+        logger.info(f"Preprocessed data already exists at {PROCESSED_DATA_PATH}.")
+        return
 
-    if data_processed_path.exists():
-        return pd.read_csv(data_processed_path)
-
-    outputs_preprocess_dir.mkdir(parents=True, exist_ok=True)
-    logger = setup_logger(outputs_preprocess_dir / 'preprocess.log', 'PREPROCESS')
+    PROCESSED_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
     df = pd.read_excel(DATA_PATH, sheet_name='final_data')
     logger.info(f"Loaded data from {DATA_PATH}.")
@@ -43,15 +40,11 @@ def get_preprocessed_data():
     add_dying_day(df, lived_columns, temperature_columns, salinity_columns)
     logger.info(f"Added dying_day column.")
 
-    df.to_csv(data_processed_path, index=False)
-    logger.info(f"Preprocessed data saved to {data_processed_path}\n{routes_statistics(df)}")
-
-    return df
+    df.to_csv(PROCESSED_DATA_PATH, index=False)
+    logger.info(f"Preprocessed data saved to {PROCESSED_DATA_PATH}\n{routes_statistics(df)}")
 
 
-def preprocess_data_by_config(config: Config, routes_df):
-    logger = setup_logger(config.data_dir_path / 'preprocess.log', f'CONFIGURATION_{config.configuration_id}_PREPROCESS')
-
+def preprocess_data_by_config(logger, config: Config, routes_df):
     if not config.include_control_routes:
         routes_df = routes_df[routes_df['Name'] != 'CONTROL']
 

@@ -1,5 +1,15 @@
+import argparse
+from pathlib import Path
+
 import numpy as np
+import pandas as pd
+from sklearn.model_selection import StratifiedKFold
+import torch
+import lightning as L
+
 from model_lstm import train_lstm_with_hyperparameters_train_val
+from configuration import Config
+from q_submitter_power import run_step
 
 
 def train_lstm_with_hyperparameters_cv(logger, config, classifier_output_dir, hidden_size, num_layers, lr, batch_size,
@@ -49,7 +59,30 @@ def train_lstm_with_hyperparameters_cv(logger, config, classifier_output_dir, hi
 
 
 def main():
-    pass
+    parser = argparse.ArgumentParser(description="Train LSTM with hyperparameters using cross-validation")
+    parser.add_argument('config', type=Path, help='Path to the configuration file')
+    parser.add_argument('classifier_output_dir', type=Path, help='Directory to save classifier output')
+    parser.add_argument('hidden_size', type=int, help='Hidden size for LSTM')
+    parser.add_argument('num_layers', type=int, help='Number of layers for LSTM')
+    parser.add_argument('lr', type=float, help='Learning rate for training')
+    parser.add_argument('batch_size', type=int, help='Batch size for training')
+    parser.add_argument('train_path', type=Path, help='Path to training data')
+    args = parser.parse_args()
+
+    config = Config.from_csv(args.config)
+
+    train_df = pd.read_csv(args.train_path)
+    X_train = train_df.drop(columns=['death'])
+    y_train = train_df['death']
+
+    cv_splitter = StratifiedKFold(n_splits=5, shuffle=True, random_state=config.random_state)
+    device = torch.device('cpu')
+    L.seed_everything(config.random_state, workers=True)
+
+    run_step(args.classifier_output_dir, f'lstm_{args.hidden_size}_{args.num_layers}_{args.lr}_{args.batch_size}',
+             config.error_file_path, train_lstm_with_hyperparameters_cv, config,
+             args.classifier_output_dir, args.hidden_size, args.num_layers, args.lr, args.batch_size, X_train, y_train,
+             device, cv_splitter)
 
 
 if __name__ == "__main__":

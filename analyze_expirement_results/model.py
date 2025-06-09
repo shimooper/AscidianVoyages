@@ -1,8 +1,5 @@
 import itertools
-from functools import reduce
 from collections import Counter
-from concurrent.futures import as_completed, ProcessPoolExecutor
-
 import joblib
 import pandas as pd
 import json
@@ -34,12 +31,13 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 import lightning as L
 
-from utils import setup_logger, convert_pascal_to_snake_case, get_column_groups_sorted, convert_columns_to_int, \
-    get_lived_columns_to_consider, merge_dicts_average, convert_data_to_tensor_for_rnn, \
+from utils import convert_pascal_to_snake_case, get_column_groups_sorted, convert_columns_to_int, \
+    get_lived_columns_to_consider, convert_data_to_tensor_for_rnn, \
     plot_models_comparison, SURVIVAL_COLORS
-from configuration import METRIC_NAME_TO_SKLEARN_SCORER, DEBUG_MODE, Config
+from configuration import METRIC_NAME_TO_SKLEARN_SCORER, DEBUG_MODE, Config, ROOT_DIR
 from model_lstm import LSTMModel, train_lstm_with_hyperparameters_train_val
 from train_lstm_cv import train_lstm_with_hyperparameters_cv
+from q_submitter_power import submit_mini_batch, wait_for_results
 
 
 class Model:
@@ -115,27 +113,30 @@ class Model:
                                                             value_name='value')
         df_salinity = full_df[salinity_cols + ['death_label']].melt(id_vars='death_label', var_name='feature',
                                                                     value_name='value')
+        df_time = full_df[['days_passed', 'death_label']].melt(id_vars='death_label', var_name='feature',
+                                                               value_name='value')
 
-        fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+        fig, axes = plt.subplots(1, 3, figsize=(18, 6))
 
         sns.stripplot(data=df_temp, x='feature', y='value', hue='death_label', palette=SURVIVAL_COLORS, jitter=True, alpha=0.7, ax=axes[0],
                       legend=False)
         axes[0].set_ylabel("Temperature (celsius)", fontsize=12)
-        # axes[0].tick_params(axis='x', rotation=45)
         axes[0].set_xlabel(None)
 
-        sns.stripplot(data=df_salinity, x='feature', y='value', hue='death_label', palette=SURVIVAL_COLORS, jitter=True, alpha=0.7, ax=axes[1])
-        # axes[1].yaxis.set_label_position("right")
-        # axes[1].yaxis.tick_right()
+        sns.stripplot(data=df_salinity, x='feature', y='value', hue='death_label', palette=SURVIVAL_COLORS, jitter=True, alpha=0.7, ax=axes[1],
+                      legend=False)
         axes[1].set_ylabel("Salinity (ppt)", fontsize=12)
-        # axes[1].tick_params(axis='x', rotation=45)
         axes[1].set_xlabel(None)
-        axes[1].legend(title=None)
+
+        sns.stripplot(data=df_time, x='feature', y='value', hue='death_label', palette=SURVIVAL_COLORS, jitter=True, alpha=0.7, ax=axes[2])
+        axes[2].set_ylabel("Days passed", fontsize=12)
+        axes[2].set_xlabel(None)
+        axes[2].legend(title=None)
 
         plt.savefig(self.model_data_dir / "scatter_plot.png", dpi=600, bbox_inches='tight')
         plt.close()
 
-    def run_analysis(self):
+    def run_analysis(self, logger):
         raise NotImplementedError
 
     @staticmethod
@@ -244,11 +245,11 @@ class Model:
 
 
 class ScikitModel(Model):
-    def run_analysis(self):
+    def run_analysis(self, logger):
         Xs_train, Ys_train, Xs_test, Ys_test = self.create_model_data()
 
         # Train
-        train_logger = setup_logger(self.model_train_dir / 'classifiers_train.log', f'MODEL_{self.model_id}_TRAIN')
+
 
         # if self.config.do_feature_selection:
         #     selected_features_mask = self.feature_selection_on_train_data(train_logger, Xs_train, Ys_train)
@@ -258,7 +259,7 @@ class ScikitModel(Model):
         # Xs_train_selected = Xs_train.loc[:, selected_features_mask]
         # Xs_test_selected = Xs_test.loc[:, selected_features_mask]
 
-        self.fit_and_test(train_logger, Xs_train, Ys_train, Xs_test, Ys_test)
+        self.fit_and_test(logger, Xs_train, Ys_train, Xs_test, Ys_test)
 
     def feature_selection_on_train_data(self, logger, Xs_train, Ys_train):
         outputs_dir = self.model_train_dir / 'feature_selection'
@@ -566,19 +567,21 @@ class ScikitModel(Model):
         all_results = []
 
         if self.config.run_lstm_configurations_in_parallel:
-            with ProcessPoolExecutor(max_workers=self.config.cpus) as executor:
-                futures = []
-                for hidden_size, num_layers, lr, batch_size in itertools.product(hyperparameter_grid['hidden_size'],
-                                                                                 hyperparameter_grid['num_layers'],
-                                                                                 hyperparameter_grid['lr'],
-                                                                                 hyperparameter_grid['batch_size']):
-                    futures.append(executor.submit(train_lstm_with_hyperparameters_cv, logger, self.config, classifier_output_dir,
-                                                   hidden_size, num_layers, lr, batch_size, Xs_train, Ys_train,
-                                                   device, cv_splitter))
+            train_lstm_cv_script = ROOT_DIR / 'train_lstm_cv.py'
+            logs_dir = classifier_output_dir / 'logs'
+            logs_dir.mkdir(exist_ok=True, parents=True)
 
-                for future in as_completed(futures):
-                    # Append result to the results list
-                    all_results.append(future.result())
+            i = 0
+            for hidden_size, num_layers, lr, batch_size in itertools.product(hyperparameter_grid['hidden_size'],
+                                                                             hyperparameter_grid['num_layers'],
+                                                                             hyperparameter_grid['lr'],
+                                                                             hyperparameter_grid['batch_size']):
+                param_list = [self.config.outputs_dir_path / 'config.csv', classifier_output_dir, hidden_size,
+                              num_layers, lr, batch_size, self.model_data_dir / 'train.csv']
+                submit_mini_batch(logger, train_lstm_cv_script, [param_list], logs_dir, f'lstm_cv_{i}', num_of_cpus=4)
+                i += 1
+
+            wait_for_results(logger, train_lstm_cv_script, logs_dir, i, self.config.error_file_path)
         else:
             for hidden_size, num_layers, lr, batch_size in itertools.product(hyperparameter_grid['hidden_size'],
                                                                              hyperparameter_grid['num_layers'],

@@ -4,10 +4,10 @@
 #SBATCH --account=gpu-research
 #SBATCH --partition=cpu-killable
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=64
-#SBATCH --mem=64G
-#SBATCH --output=/home/ai_center/ai_users/yairshimony/ships/analyze_expirement_results/%j.out
-#SBATCH --error=/home/ai_center/ai_users/yairshimony/ships/analyze_expirement_results/%j.err
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=4G
+#SBATCH --output=/home/ai_center/ai_users/yairshimony/ships/analyze_expirement_results/outputs_cv/%j.out
+#SBATCH --error=/home/ai_center/ai_users/yairshimony/ships/analyze_expirement_results/outputs_cv/%j.err
 
 echo "Job ID: $SLURM_JOB_ID"
 echo "Running on nodes: $SLURM_JOB_NODELIST"
@@ -21,4 +21,4 @@ source ~/miniconda/etc/profile.d/conda.sh
 conda activate ships
 export PATH=$CONDA_PREFIX/bin:$PATH
 
-python ~/ships/analyze_expirement_results/main.py --cpus $SLURM_JOB_CPUS_PER_NODE --outputs_dir_name outputs_cv2 --run_configurations_in_parallel True --run_lstm_configurations_in_parallel True
+python ~/ships/analyze_expirement_results/main.py --cpus $SLURM_JOB_CPUS_PER_NODE --outputs_dir_name outputs_cv --run_configurations_in_parallel True --run_lstm_configurations_in_parallel True
