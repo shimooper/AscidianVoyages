@@ -80,7 +80,7 @@ class Model:
 
         return days_df
 
-    def create_model_data(self):
+    def create_model_data(self, logger):
         train_df = pd.read_csv(self.config.data_dir_path / 'train.csv')
         model_train_df = self.convert_routes_to_model_data(train_df)
         model_train_df.to_csv(self.model_data_dir / 'train.csv', index=False)
@@ -88,6 +88,9 @@ class Model:
         test_df = pd.read_csv(self.config.data_dir_path / 'test.csv')
         model_test_df = self.convert_routes_to_model_data(test_df)
         model_test_df.to_csv(self.model_data_dir / 'test.csv', index=False)
+
+        logger.info(f"Created model data for training and testing with interval length {self.interval_length} days, "
+                    f"and saved to {self.model_data_dir / 'train.csv'} and {self.model_data_dir / 'test.csv'}")
 
         Xs_train = model_train_df.drop(columns=['death'])
         Ys_train = model_train_df['death']
@@ -238,7 +241,7 @@ class Model:
         f1_on_test = f1_score(Ys_test, y_pred)
 
         logger.info(
-            f"Best estimator - MCC on test: {mcc_on_test}, AUPRC on test: {auprc_on_test}, F1 on test: {f1_on_test}")
+            f"Final estimator - MCC on test: {mcc_on_test}, AUPRC on test: {auprc_on_test}, F1 on test: {f1_on_test}")
 
         test_results = pd.DataFrame({'mcc': [mcc_on_test], 'auprc': [auprc_on_test], 'f1': [f1_on_test]})
         test_results.to_csv(output_dir / 'final_classifier_test_results.csv', index=False)
@@ -246,7 +249,7 @@ class Model:
 
 class ScikitModel(Model):
     def run_analysis(self, logger):
-        Xs_train, Ys_train, Xs_test, Ys_test = self.create_model_data()
+        Xs_train, Ys_train, Xs_test, Ys_test = self.create_model_data(logger)
 
         # Train
 
@@ -344,8 +347,11 @@ class ScikitModel(Model):
         Xs_test_features = self.convert_X_to_features(Xs_test)
         Xs_train_features.to_csv(self.model_data_dir / 'Xs_train_features.csv', index=False)
         Xs_test_features.to_csv(self.model_data_dir / 'Xs_test_features.csv', index=False)
+        logger.info(f"Converted Xs_train and Xs_test to features, and saved them to "
+                    f"{self.model_data_dir / 'Xs_train_features.csv'} and {self.model_data_dir / 'Xs_test_features.csv'}")
 
         self.plot_univariate_features_with_respect_to_label(Xs_train_features, Xs_test_features, Ys_train, Ys_test)
+        logger.info(f"Plotted univariate features with respect to label, and saved")
 
         classifiers = self.create_classifiers_and_param_grids(Ys_train, self.config.balance_classes)
         for classifier, param_grid in classifiers:
@@ -614,7 +620,7 @@ class ScikitModel(Model):
         logger.info(f"Best LSTM model results after 5-fold cross-validation:\n{best_model_results}")
 
         # Now, train again using the best hyperparameters using 90/10 split of the training set
-        logger.info(f"Training LSTM Classifier with the best hyperparameters...")
+        logger.info(f"Training final LSTM Classifier with the best hyperparameters...")
         final_train_dir = classifier_output_dir / 'final_train'
         final_train_dir.mkdir(exist_ok=True, parents=True)
 

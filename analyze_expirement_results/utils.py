@@ -114,7 +114,7 @@ def plot_models_comparison(results_df, outputs_dir: Path, metric):
     results_filtered_df.loc['best_model'] = max_indices
     results_filtered_df.to_csv(outputs_dir / 'models_comparison.csv')
 
-    if len(results_df.index) == 1:  # There is only one model, no comparison needed
+    if len(results_df.index) == 1:  # There is only one model, no statistical significance needed
         return
 
     best_model_name = results_df[f'mean_test_{metric}'].idxmax()
