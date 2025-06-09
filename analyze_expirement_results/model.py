@@ -41,12 +41,12 @@ from q_submitter_power import submit_mini_batch, wait_for_results
 
 
 class Model:
-    def __init__(self, config: Config, model_id, number_of_days_to_consider):
+    def __init__(self, config: Config, model_id, interval_length):
         self.config = config
         self.model_id = model_id
-        self.number_of_days_to_consider = number_of_days_to_consider
+        self.interval_length = interval_length
 
-        output_dir_path = config.models_dir_path / f'days_to_consider_{number_of_days_to_consider}'
+        output_dir_path = config.models_dir_path / f'{interval_length}_day_intervals'
         self.model_data_dir = output_dir_path / 'data'
         self.model_train_dir = output_dir_path / 'train_outputs'
         self.model_data_dir.mkdir(exist_ok=True, parents=True)
@@ -64,17 +64,17 @@ class Model:
                 if pd.isna(row[f'Lived {col_day}']):
                     continue
 
-                temperature_values = [row[f'Temp {col_day - i}'] for i in range(self.number_of_days_to_consider)][::-1]
-                salinity_values = [row[f'Salinity {col_day - i}'] for i in range(self.number_of_days_to_consider)][::-1]
-                time_values = [col_day - i for i in range(self.number_of_days_to_consider)][::-1]
+                temperature_values = [row[f'Temp {col_day - i}'] for i in range(self.interval_length)][::-1]
+                salinity_values = [row[f'Salinity {col_day - i}'] for i in range(self.interval_length)][::-1]
+                time_values = [col_day - i for i in range(self.interval_length)][::-1]
                 lived_cols_to_consider = get_lived_columns_to_consider(row, col_day, self.config.number_of_future_days_to_consider_death)
 
                 new_row = [*temperature_values, *salinity_values, *time_values, any(row[lived_cols_to_consider])]
                 days_data.append(new_row)
 
-        days_df = pd.DataFrame(days_data, columns=[*[f'Temperature {i}' for i in range(1, self.number_of_days_to_consider + 1)],
-                                                   *[f'Salinity {i}' for i in range(1, self.number_of_days_to_consider + 1)],
-                                                   *[f'Time {i}' for i in range(1, self.number_of_days_to_consider + 1)],
+        days_df = pd.DataFrame(days_data, columns=[*[f'Temperature {i}' for i in range(1, self.interval_length + 1)],
+                                                   *[f'Salinity {i}' for i in range(1, self.interval_length + 1)],
+                                                   *[f'Time {i}' for i in range(1, self.interval_length + 1)],
                                                    'death'])
         convert_columns_to_int(days_df)
 
@@ -564,8 +564,6 @@ class ScikitModel(Model):
             }
 
         # Grid search
-        all_results = []
-
         if self.config.run_lstm_configurations_in_parallel:
             train_lstm_cv_script = ROOT_DIR / 'train_lstm_cv.py'
             logs_dir = classifier_output_dir / 'logs'
@@ -578,11 +576,20 @@ class ScikitModel(Model):
                                                                              hyperparameter_grid['batch_size']):
                 param_list = [self.config.outputs_dir_path / 'config.csv', classifier_output_dir, hidden_size,
                               num_layers, lr, batch_size, self.model_data_dir / 'train.csv']
-                submit_mini_batch(logger, train_lstm_cv_script, [param_list], logs_dir, f'lstm_cv_{i}', num_of_cpus=4)
+                submit_mini_batch(logger, train_lstm_cv_script, [param_list], logs_dir, f'lstm_cv_{i}',
+                                  self.config.error_file_path, num_of_cpus=4)
                 i += 1
 
             wait_for_results(logger, train_lstm_cv_script, logs_dir, i, self.config.error_file_path)
+
+            all_results = []
+            for grid_combination_dir in classifier_output_dir.iterdir():
+                if grid_combination_dir.name.startswith('hs_'):
+                    df = pd.read_csv(grid_combination_dir / 'results.csv', index_col=0).squeeze('columns')
+                    all_results.append(df)
+            results_df = pd.DataFrame(all_results)
         else:
+            all_results = []
             for hidden_size, num_layers, lr, batch_size in itertools.product(hyperparameter_grid['hidden_size'],
                                                                              hyperparameter_grid['num_layers'],
                                                                              hyperparameter_grid['lr'],
@@ -592,9 +599,9 @@ class ScikitModel(Model):
                                                               Xs_train, Ys_train,
                                                               device, cv_splitter)
                 all_results.append(result)
+            results_df = pd.DataFrame(all_results)
 
         # Save all hyperparameter results to CSV
-        results_df = pd.DataFrame(all_results)
         results_df.to_csv(classifier_output_dir / 'lstm_grid_results.csv')
         logger.info(f"Hyperparameter search results saved to {classifier_output_dir / 'hyperparameter_results.csv'}")
 

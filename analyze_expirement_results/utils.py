@@ -158,3 +158,14 @@ def plot_models_comparison(results_df, outputs_dir: Path, metric):
     statistics_results_df['significant_wilcox_fdr'] = reject_wilcox
 
     statistics_results_df.to_csv(outputs_dir / 'model_comparison_statistics.csv', index=False)
+
+
+def str_to_bool(value):
+    if isinstance(value, bool):
+        return value
+    if value.lower() in ("yes", "true", "t", "1"):
+        return True
+    elif value.lower() in ("no", "false", "f", "0"):
+        return False
+    else:
+        raise TypeError("Boolean value expected.")

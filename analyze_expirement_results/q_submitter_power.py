@@ -15,7 +15,7 @@ import traceback
 from sys import argv
 from datetime import timedelta
 
-from utils import get_logger
+from utils import get_logger, str_to_bool
 
 JOB_EXTENSION = '.slurm'
 JOB_SUBMITTER = 'sbatch'
@@ -113,9 +113,8 @@ def submit_cmds_from_file_to_q(logger, job_name, cmds_path, tmp_dir, queue_name,
             sleep(1)
 
 
-def submit_mini_batch(logger, script_path, mini_batch_parameters_list, logs_dir, job_name, num_of_cpus=1,
-                      memory=None, time_in_hours=None, environment_variables_to_change_before_script: dict = None,
-                      alternative_error_file=None):
+def submit_mini_batch(logger, script_path, mini_batch_parameters_list, logs_dir, job_name, error_file_path, num_of_cpus=1,
+                      memory=None, time_in_hours=None, environment_variables_to_change_before_script: dict = None):
     """
     :param script_path:
     :param mini_batch_parameters_list: a list of lists. each sublist corresponds to a single command and contain its parameters
@@ -140,7 +139,9 @@ def submit_mini_batch(logger, script_path, mini_batch_parameters_list, logs_dir,
 
     for params in mini_batch_parameters_list:
         shell_cmds_as_str += ' '.join(
-            ['python', str(script_path), *[str(param) for param in params]]) + '\n'
+            ['python', str(script_path), *[str(param) for param in params],
+             f'--logs_dir {logs_dir}', f'--error_file_path {error_file_path}', f'--job_name {job_name}',
+             f'--cpus {num_of_cpus}']) + '\n'
 
     # GENERATE DONE FILE
     shell_cmds_as_str += f'touch {logs_dir / (job_name + JOB_DONE_FILE_SUFFIX)}\n'
@@ -161,8 +162,8 @@ def submit_mini_batch(logger, script_path, mini_batch_parameters_list, logs_dir,
                                SLURM_ACCOUNT, memory, time_in_hours, None)
 
 
-def run_step(logs_dir, job_name, error_file_path, step_method, *step_args):
-    logger = get_job_logger(logs_dir, job_name)
+def run_step(args, step_method, *step_args):
+    logger = get_job_logger(args.logs_dir, args.job_name)
     logger.info(f'Starting command is: {" ".join(argv)}')
 
     try:
@@ -170,11 +171,11 @@ def run_step(logs_dir, job_name, error_file_path, step_method, *step_args):
     except subprocess.CalledProcessError as e:
         error_message = f'Error in function "{step_method.__name__}" in command: "{e.cmd}": {e.stderr}'
         logger.exception(error_message)
-        with open(error_file_path, 'a+') as f:
+        with open(args.error_file_path, 'a+') as f:
             f.write(error_message)
     except Exception as e:
         logger.exception(f'Error in function "{step_method.__name__}"')
-        with open(error_file_path, 'a+') as f:
+        with open(args.error_file_path, 'a+') as f:
             traceback.print_exc(file=f)
 
 
@@ -214,3 +215,10 @@ def wait_for_results(logger, script_name, path, num_of_expected_results, error_f
     logger.info(f'Done waiting for: {script_name} (took {total_time_waited}).')
 
     assert not error_file_path.exists()
+
+
+def add_default_step_args(args_parser):
+    args_parser.add_argument('--logs_dir', type=Path, help='path to tmp dir to write logs to')
+    args_parser.add_argument('--error_file_path', type=Path, help='path to error file')
+    args_parser.add_argument('--job_name', help='job name')
+    args_parser.add_argument('--cpus', default=1, type=int)

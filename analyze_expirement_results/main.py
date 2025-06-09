@@ -39,6 +39,8 @@ def create_config(flag_combination, configuration_id, cpus, outputs_dir, do_feat
 
 
 def main(outputs_dir, cpus, do_feature_selection, run_configurations_in_parallel, run_lstm_configurations_in_parallel):
+    print('Starting analysis of experiment results...')
+
     outputs_dir.mkdir(exist_ok=True, parents=True)
     main_logger = get_job_logger(outputs_dir, 'main')
     error_file_path = outputs_dir / 'error.txt'
@@ -51,13 +53,17 @@ def main(outputs_dir, cpus, do_feature_selection, run_configurations_in_parallel
 
     configuration_id = 0
     if run_configurations_in_parallel:
+        logs_dir = outputs_dir / 'logs'
+        logs_dir.mkdir(exist_ok=True, parents=True)
+
         script_path = ROOT_DIR / 'run_analysis_of_config.py'
         for flags_combination in flags_combinations:
             _, config_path = create_config(flags_combination, configuration_id, 8,
                                    outputs_dir, do_feature_selection, run_lstm_configurations_in_parallel, error_file_path)
-            submit_mini_batch(main_logger, script_path, [[config_path]], outputs_dir, f'config_{configuration_id}', num_of_cpus=8)
+            submit_mini_batch(main_logger, script_path, [[config_path]], logs_dir, f'config_{configuration_id}',
+                              error_file_path, num_of_cpus=8)
             configuration_id += 1
-        wait_for_results(main_logger, script_path, outputs_dir, configuration_id, error_file_path)
+        wait_for_results(main_logger, script_path, logs_dir, configuration_id, error_file_path)
     else:
         for flags_combination in flags_combinations:
             config, _ = create_config(flags_combination, configuration_id, cpus, outputs_dir, do_feature_selection, run_lstm_configurations_in_parallel, error_file_path)

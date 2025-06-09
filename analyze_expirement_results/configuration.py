@@ -1,10 +1,11 @@
 from pathlib import Path
-import argparse
 from dataclasses import dataclass, asdict
 import platform
 
 from sklearn.metrics import make_scorer, matthews_corrcoef
 import pandas as pd
+
+from utils import str_to_bool
 
 if platform.system() == "Linux":
     DEBUG_MODE = False
@@ -12,6 +13,7 @@ elif platform.system() == "Windows":
     DEBUG_MODE = True
 else:
     raise Exception(f"Unsupported platform: {platform.system()}")
+DEBUG_MODE = True
 
 ROOT_DIR = Path(__file__).resolve().parent
 DATA_DIR = ROOT_DIR / 'data'
@@ -28,7 +30,7 @@ NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH = [0] if not DEBUG_MODE else [0]
 # METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS = ['f1', 'mcc', 'auprc'] if not DEBUG_MODE else ['f1']
 METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS = ['f1'] if not DEBUG_MODE else ['f1']
 TEST_SET_SIZE = 0.2
-NUMBER_OF_DAYS_TO_CONSIDER = [1, 2, 3, 4] if not DEBUG_MODE else [3, 4]
+INTERVAL_LENGTH = [1, 2, 3, 4] if not DEBUG_MODE else [3, 4]
 BALANCE_CLASSES_IN_TRAINING = [False, True] if not DEBUG_MODE else [False]
 NN_MAX_EPOCHS = 15 if not DEBUG_MODE else 1
 MAX_CLASS_RATIO = 0.25  # Relevant only if BALANCE_CLASSES_IN_TRAINING is True
@@ -83,14 +85,3 @@ class Config:
                 raise ValueError(f'key {key} not in {cls} annotations')
 
         return cls(**typed_data)
-
-
-def str_to_bool(value):
-    if isinstance(value, bool):
-        return value
-    if value.lower() in ("yes", "true", "t", "1"):
-        return True
-    elif value.lower() in ("no", "false", "f", "0"):
-        return False
-    else:
-        raise argparse.ArgumentTypeError("Boolean value expected.")

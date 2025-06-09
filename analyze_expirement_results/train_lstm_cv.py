@@ -9,7 +9,7 @@ import lightning as L
 
 from model_lstm import train_lstm_with_hyperparameters_train_val
 from configuration import Config
-from q_submitter_power import run_step
+from q_submitter_power import run_step, add_default_step_args
 
 
 def train_lstm_with_hyperparameters_cv(logger, config, classifier_output_dir, hidden_size, num_layers, lr, batch_size,
@@ -55,6 +55,9 @@ def train_lstm_with_hyperparameters_cv(logger, config, classifier_output_dir, hi
     results[f'mean_test_auprc'] = np.mean(
         [results[f'split{fold_id}_test_auprc'] for fold_id in range(cv_splitter.n_splits)])
 
+    results_df = pd.Series(results)
+    results_df.to_csv(grid_combination_dir / 'results.csv')
+
     return results
 
 
@@ -67,6 +70,7 @@ def main():
     parser.add_argument('lr', type=float, help='Learning rate for training')
     parser.add_argument('batch_size', type=int, help='Batch size for training')
     parser.add_argument('train_path', type=Path, help='Path to training data')
+    add_default_step_args(parser)
     args = parser.parse_args()
 
     config = Config.from_csv(args.config)
@@ -79,8 +83,7 @@ def main():
     device = torch.device('cpu')
     L.seed_everything(config.random_state, workers=True)
 
-    run_step(args.classifier_output_dir, f'lstm_{args.hidden_size}_{args.num_layers}_{args.lr}_{args.batch_size}',
-             config.error_file_path, train_lstm_with_hyperparameters_cv, config,
+    run_step(args, train_lstm_with_hyperparameters_cv, config,
              args.classifier_output_dir, args.hidden_size, args.num_layers, args.lr, args.batch_size, X_train, y_train,
              device, cv_splitter)
 
