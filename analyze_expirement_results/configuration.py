@@ -13,7 +13,6 @@ elif platform.system() == "Windows":
     DEBUG_MODE = True
 else:
     raise Exception(f"Unsupported platform: {platform.system()}")
-DEBUG_MODE = True
 
 ROOT_DIR = Path(__file__).resolve().parent
 DATA_DIR = ROOT_DIR / 'data'
