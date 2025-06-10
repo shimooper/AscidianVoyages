@@ -93,7 +93,15 @@ def convert_data_to_tensor_for_rnn(X_df, device):
 
 
 def plot_models_comparison(results_df, outputs_dir: Path, metric):
-    results_filtered_df = results_df[['mean_test_f1', 'mean_test_auprc', 'mean_test_mcc']].copy()
+    if metric == 'f1':
+        results_filtered_df = results_df[['mean_test_f1', 'mean_test_auprc', 'mean_test_mcc']].copy()
+    elif metric == 'mcc':
+        results_filtered_df = results_df[['mean_test_mcc', 'mean_test_auprc', 'mean_test_f1']].copy()
+    elif metric == 'auprc':
+        results_filtered_df = results_df[['mean_test_auprc', 'mean_test_mcc', 'mean_test_f1']].copy()
+    else:
+        raise ValueError(f"Unsupported metric: {metric}. Supported metrics are 'f1', 'mcc', and 'auprc'.")
+
     results_filtered_df.rename(columns={'mean_test_f1': 'F1', 'mean_test_auprc': 'AUPRC', 'mean_test_mcc': 'MCC'}, inplace=True)
     results_filtered_melted_df = results_filtered_df.reset_index().melt(id_vars='model_name', var_name='metric', value_name='score')
 
