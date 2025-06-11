@@ -72,7 +72,7 @@ def run_one_config(config, routes_train_path, routes_test_path, aggregation_type
         'death_prediction_probability': 'mean',
     }).reset_index()
     routes_grouped_df.sort_values(by=['death_prediction_probability'], inplace=True)
-    routes_grouped_df['risk'] = routes_grouped_df['death_prediction'].map(lambda x: 'HIGH' if x == False else 'LOW')
+    routes_grouped_df['risk'] = routes_grouped_df['death_prediction'].map(lambda x: 'HIGH' if not x else 'LOW')
     routes_grouped_df.to_csv(output_dir / 'routes_risk_grouped.csv', index=False)
 
 
