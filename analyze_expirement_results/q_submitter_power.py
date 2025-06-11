@@ -15,7 +15,7 @@ import traceback
 from sys import argv
 from datetime import timedelta
 
-from utils import get_logger, str_to_bool
+from analyze_expirement_results.utils import get_logger, str_to_bool
 
 JOB_EXTENSION = '.slurm'
 JOB_SUBMITTER = 'sbatch'

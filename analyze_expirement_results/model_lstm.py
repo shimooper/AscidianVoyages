@@ -10,7 +10,7 @@ import torch.optim as optim
 import lightning as L
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 
-from utils import convert_data_to_tensor_for_rnn
+from analyze_expirement_results.utils import convert_data_to_tensor_for_rnn
 
 
 # Define LSTM model using PyTorch Lightning

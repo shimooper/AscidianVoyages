@@ -3,36 +3,26 @@ import pandas as pd
 import joblib
 import argparse
 from sklearn.linear_model import LogisticRegression
-from sklearn.tree import DecisionTreeClassifier
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.metrics import matthews_corrcoef, average_precision_score, f1_score
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-from analyze_expirement_results.utils import setup_logger
 from analyze_expirement_results.configuration import Config
 
 PROJECT_ROOT_DIR = Path(__file__).resolve().parent.parent
-CONFIG_PATH = PROJECT_ROOT_DIR / 'outputs' / 'configuration_0' / 'config.csv'
+CONFIG_PATH = PROJECT_ROOT_DIR / 'outputs_cv' / 'configuration_1' / 'config.csv'
 
 DEBUG = True
 CLASSIFIERS = lambda rs: [('calibrated_sigmoid_lr', CalibratedClassifierCV(estimator=LogisticRegression(random_state=rs), method='sigmoid')),
                           ('calibrated_sigmoid_isotonic', CalibratedClassifierCV(estimator=LogisticRegression(random_state=rs), method='isotonic')),
-                          ('lr', LogisticRegression(random_state=rs))]
-AGGREGATION_TYPES = ['min', 'max', 'mean', 'multiply'] if not DEBUG else ['multiply']
+                          ('lr', LogisticRegression(random_state=rs))] if not DEBUG else [('lr', LogisticRegression(random_state=rs))]
+AGGREGATION_TYPES = ['min', 'max', 'mean', 'log_multiply'] if not DEBUG else ['log_multiply']
 
 
-def add_death_columns(routes_df):
-    for agg_type in AGGREGATION_TYPES:
-        routes_df[f'{agg_type}_death'] = 1 - routes_df[agg_type]
-
-
-def run_one_config(routes_train_path, routes_test_path, aggregation_type, route_classifier, output_dir):
+def run_one_config(config, routes_train_path, routes_test_path, aggregation_type, route_classifier, output_dir):
     train_df = pd.read_csv(routes_train_path)
     test_df = pd.read_csv(routes_test_path)
-    add_death_columns(train_df)
-    add_death_columns(test_df)
-    aggregation_type = f'{aggregation_type}_death'
 
     # Use the aggregated score to fit a classification model
     route_classifier.fit(train_df[[aggregation_type]], train_df['death'])
@@ -49,7 +39,14 @@ def run_one_config(routes_train_path, routes_test_path, aggregation_type, route_
         auprc = average_precision_score(dataset_df['death'], routes_predictions_probabilities)
         f1 = f1_score(dataset_df['death'], routes_predictions)
 
-        metrics = {'split': dataset_name, 'mcc': mcc, 'auprc': auprc, 'f1': f1}
+        if config.metric == 'mcc':
+            metrics = {'split': dataset_name, 'mcc': mcc, 'auprc': auprc, 'f1': f1}
+        elif config.metric == 'f1':
+            metrics = {'split': dataset_name, 'f1': f1, 'auprc': auprc, 'mcc': mcc}
+        elif config.metric == 'auprc':
+            metrics = {'split': dataset_name, 'auprc': auprc, 'mcc': mcc, 'f1': f1}
+        else:
+            raise ValueError(f"Unsupported metric: {config.metric}. Supported metrics are 'f1', 'mcc', and 'auprc'.")
         all_metrics.append(metrics)
 
     metrics_df = pd.DataFrame(all_metrics)
@@ -58,7 +55,6 @@ def run_one_config(routes_train_path, routes_test_path, aggregation_type, route_
     # Plot
     df_melted = metrics_df.melt(id_vars='split', var_name='metric', value_name='value')
     sns.barplot(data=df_melted, x='metric', y='value', hue='split')
-    plt.title("Routes Risk Classifier Performance")
     plt.xlabel("Metric")
     plt.ylabel("Value")
     plt.legend(title='Dataset')
@@ -76,6 +72,7 @@ def run_one_config(routes_train_path, routes_test_path, aggregation_type, route_
         'death_prediction_probability': 'mean',
     }).reset_index()
     routes_grouped_df.sort_values(by=['death_prediction_probability'], inplace=True)
+    routes_grouped_df['risk'] = routes_grouped_df['death_prediction'].map(lambda x: 'HIGH' if x == False else 'LOW')
     routes_grouped_df.to_csv(output_dir / 'routes_risk_grouped.csv', index=False)
 
 
@@ -85,7 +82,7 @@ def main(routes_train_path, routes_test_path, config_path, output_dir):
         for aggregation_type in AGGREGATION_TYPES:
             config_output_dir = output_dir / f'{classifier_name}_{aggregation_type}'
             config_output_dir.mkdir(parents=True, exist_ok=True)
-            run_one_config(routes_train_path, routes_test_path, aggregation_type, classifier, config_output_dir)
+            run_one_config(config, routes_train_path, routes_test_path, aggregation_type, classifier, config_output_dir)
 
 
 if __name__ == "__main__":

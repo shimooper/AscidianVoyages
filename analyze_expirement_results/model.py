@@ -31,19 +31,18 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 import lightning as L
 
-from utils import convert_pascal_to_snake_case, get_column_groups_sorted, convert_columns_to_int, \
+from analyze_expirement_results.utils import convert_pascal_to_snake_case, get_column_groups_sorted, convert_columns_to_int, \
     get_lived_columns_to_consider, convert_data_to_tensor_for_rnn, \
     plot_models_comparison, SURVIVAL_COLORS
-from configuration import METRIC_NAME_TO_SKLEARN_SCORER, DEBUG_MODE, Config, ROOT_DIR
-from model_lstm import LSTMModel, train_lstm_with_hyperparameters_train_val
-from train_lstm_cv import train_lstm_with_hyperparameters_cv
-from q_submitter_power import submit_mini_batch, wait_for_results
+from analyze_expirement_results.configuration import METRIC_NAME_TO_SKLEARN_SCORER, DEBUG_MODE, Config, ROOT_DIR
+from analyze_expirement_results.model_lstm import LSTMModel, train_lstm_with_hyperparameters_train_val
+from analyze_expirement_results.train_lstm_cv import train_lstm_with_hyperparameters_cv
+from analyze_expirement_results.q_submitter_power import submit_mini_batch, wait_for_results
 
 
 class Model:
-    def __init__(self, config: Config, model_id, interval_length):
+    def __init__(self, config: Config, interval_length):
         self.config = config
-        self.model_id = model_id
         self.interval_length = interval_length
 
         output_dir_path = config.models_dir_path / f'{interval_length}_day_interval'
@@ -55,22 +54,12 @@ class Model:
         np.random.seed(self.config.random_state)
 
     def convert_routes_to_model_data(self, df):
-        lived_columns, temperature_columns, salinity_columns = get_column_groups_sorted(df)
+        lived_columns, _, _ = get_column_groups_sorted(df)
 
         days_data = []
         for index, row in df.iterrows():
-            for col in lived_columns[-1:2:-1]:
-                col_day = int(col.split(' ')[1])
-                if pd.isna(row[f'Lived {col_day}']):
-                    continue
-
-                temperature_values = [row[f'Temp {col_day - i}'] for i in range(self.interval_length)][::-1]
-                salinity_values = [row[f'Salinity {col_day - i}'] for i in range(self.interval_length)][::-1]
-                time_values = [col_day - i for i in range(self.interval_length)][::-1]
-                lived_cols_to_consider = get_lived_columns_to_consider(row, col_day, self.config.number_of_future_days_to_consider_death)
-
-                new_row = [*temperature_values, *salinity_values, *time_values, any(row[lived_cols_to_consider])]
-                days_data.append(new_row)
+            route_days_data = self.convert_route_to_intervals(row, lived_columns)
+            days_data.extend(route_days_data)
 
         days_df = pd.DataFrame(days_data, columns=[*[f'Temperature {i}' for i in range(1, self.interval_length + 1)],
                                                    *[f'Salinity {i}' for i in range(1, self.interval_length + 1)],
@@ -79,6 +68,24 @@ class Model:
         convert_columns_to_int(days_df)
 
         return days_df
+
+    def convert_route_to_intervals(self, route_row: pd.Series, lived_columns):
+        days_data = []
+        for col in lived_columns[-1:2:-1]:
+            col_day = int(col.split(' ')[1])
+            if pd.isna(route_row[f'Temp {col_day}']):
+                continue
+
+            temperature_values = [route_row[f'Temp {col_day - i}'] for i in range(self.interval_length)][::-1]
+            salinity_values = [route_row[f'Salinity {col_day - i}'] for i in range(self.interval_length)][::-1]
+            time_values = [col_day - i for i in range(self.interval_length)][::-1]
+            lived_cols_to_consider = get_lived_columns_to_consider(route_row, col_day,
+                                                                   self.config.number_of_future_days_to_consider_death)
+
+            new_row = [*temperature_values, *salinity_values, *time_values, any(route_row[lived_cols_to_consider])]
+            days_data.append(new_row)
+
+        return days_data
 
     def create_model_data(self, logger):
         train_df = pd.read_csv(self.config.data_dir_path / 'train.csv')
@@ -634,6 +641,7 @@ class ScikitModel(Model):
         # Test final model on test data
         scaler = StandardScaler()
         scaler.fit(X_train)
+        joblib.dump(scaler, final_train_dir / 'scaler.pkl')
         Xs_test_scaled = pd.DataFrame(scaler.transform(Xs_test), columns=Xs_test.columns, index=Xs_test.index)
         X_test_tensor = convert_data_to_tensor_for_rnn(Xs_test_scaled, device)
         test_dataset = TensorDataset(X_test_tensor, torch.tensor(Ys_test.values, device=device))

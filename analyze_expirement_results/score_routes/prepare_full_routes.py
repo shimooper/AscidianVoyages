@@ -4,7 +4,7 @@ import re
 
 PROJECT_ROOT_DIR = Path(__file__).resolve().parent.parent
 
-ACTUAL_EXPERIMENT_DATA = PROJECT_ROOT_DIR / 'outputs' / 'configuration_0' / 'data'
+ACTUAL_EXPERIMENT_DATA = PROJECT_ROOT_DIR / 'outputs_cv' / 'configuration_1' / 'data'
 ACTUAL_EXPERIMENT_TRAIN_DATA = ACTUAL_EXPERIMENT_DATA / 'train.csv'
 ACTUAL_EXPERIMENT_TEST_DATA = ACTUAL_EXPERIMENT_DATA / 'test.csv'
 
@@ -38,15 +38,16 @@ def prepare_data(actual_experiment_data, planned_experiment_data, output_dir):
             first_nan_day = find_first_nan_day(row)
             if first_nan_day is not None:
                 if row['Name'] == 'CONTROL':
-                    planned_temp = lambda day_number: row['Temp 0']
-                    planned_salinity = lambda day_number: row['Salinity 0']
+                    planned_temp = lambda day_number: row['Temp 1']
+                    planned_salinity = lambda day_number: row['Salinity 1']
                 else:
                     planned_route = planned_df[(planned_df['Ship'].str.contains(row['Name'])) &
-                                               (planned_df['Season'] == row['Season'])].reset_index()
-                    planned_temp = lambda day_number: round(planned_route.loc[day_number - 1, 'Temperature (celsius)'])
-                    planned_salinity = lambda day_number: round(planned_route.loc[day_number - 1, 'Salinity (ppt)'])
+                                               (planned_df['Season'] == row['Season'])].reset_index(drop=True)
+                    planned_route.index = range(4, 4 + planned_route.shape[0])  # Adjust index since actual route starts from day 4 (first 3 days are acclimation)
+                    planned_temp = lambda day_number: round(planned_route.loc[day_number, 'Temperature (celsius)'])
+                    planned_salinity = lambda day_number: round(planned_route.loc[day_number, 'Salinity (ppt)'])
 
-                for i in range(first_nan_day, 30 + 1):
+                for i in range(first_nan_day, 33 + 1):
                     actual_df.loc[actual_df_index, f'Temp {i}'] = planned_temp(i)
                     actual_df.loc[actual_df_index, f'Salinity {i}'] = planned_salinity(i)
         except Exception as e:

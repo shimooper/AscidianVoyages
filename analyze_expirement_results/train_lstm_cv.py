@@ -7,9 +7,9 @@ from sklearn.model_selection import StratifiedKFold
 import torch
 import lightning as L
 
-from model_lstm import train_lstm_with_hyperparameters_train_val
-from configuration import Config
-from q_submitter_power import run_step, add_default_step_args
+from analyze_expirement_results.model_lstm import train_lstm_with_hyperparameters_train_val
+from analyze_expirement_results.configuration import Config
+from analyze_expirement_results.q_submitter_power import run_step, add_default_step_args
 
 
 def train_lstm_with_hyperparameters_cv(logger, config, classifier_output_dir, hidden_size, num_layers, lr, batch_size,

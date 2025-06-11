@@ -5,7 +5,7 @@ import platform
 from sklearn.metrics import make_scorer, matthews_corrcoef
 import pandas as pd
 
-from utils import str_to_bool
+from analyze_expirement_results.utils import str_to_bool
 
 if platform.system() == "Linux":
     DEBUG_MODE = False
@@ -21,7 +21,7 @@ PROCESSED_DATA_DIR = DATA_DIR / 'preprocess'
 PROCESSED_DATA_PATH = PROCESSED_DATA_DIR / 'Final_Data_Voyages_Processed_30.csv'
 
 INCLUDE_CONTROL_ROUTES = [True]
-INCLUDE_SUSPECTED_ROUTES_PARTS = [True, False] if not DEBUG_MODE else [True, False]
+INCLUDE_SUSPECTED_ROUTES_PARTS = [False] if not DEBUG_MODE else [True, False]
 STRATIFY_TRAIN_TEST_SPLIT = [True, False] if not DEBUG_MODE else [True]
 # RANDOM_STATE = [0, 42, 123, 99, 2025] if not DEBUG_MODE else [0]
 RANDOM_STATE = [0] if not DEBUG_MODE else [0]
