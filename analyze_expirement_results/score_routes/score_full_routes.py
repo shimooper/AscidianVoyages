@@ -14,7 +14,7 @@ from analyze_expirement_results.model import ScikitModel
 from analyze_expirement_results.configuration import Config
 
 INTERVAL_LENGTH = 4
-OUTPUTS_DIR_PATH = PROJECT_ROOT_DIR / 'analyze_expirement_results' / 'outputs_cv' / 'configuration_1'
+OUTPUTS_DIR_PATH = PROJECT_ROOT_DIR / 'analyze_expirement_results' / 'outputs_cv' / 'configuration_2'
 CONFIG_PATH = OUTPUTS_DIR_PATH / 'config.csv'
 MODELS_PATH = OUTPUTS_DIR_PATH / 'models' / f'{INTERVAL_LENGTH}_day_interval' / 'train_outputs'
 RANDOM_FOREST_MODEL_PATH = MODELS_PATH / 'random_forest_classifier' / 'best_RandomForestClassifier.pkl'
@@ -111,4 +111,4 @@ if __name__ == "__main__":
     parser.add_argument('--output_dir', type=Path, default=Path('full_routes_aggregated_scores'))
     args = parser.parse_args()
 
-    score_routes(args.routes_train_path, args.routes_test_path, LSTM_MODEL_PATH, args.output_dir)
+    score_routes(args.routes_train_path, args.routes_test_path, RANDOM_FOREST_MODEL_PATH, args.output_dir)
