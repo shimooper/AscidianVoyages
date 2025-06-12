@@ -30,14 +30,14 @@ def run_one_config(config, routes_train_path, routes_test_path, aggregation_type
 
     all_metrics = []
     for dataset_name, dataset_df in [('train', train_df), ('test', test_df)]:
-        routes_predictions = route_classifier.predict(dataset_df[[aggregation_type]])
-        routes_predictions_probabilities = route_classifier.predict_proba(dataset_df[[aggregation_type]])[:, 1]
-        dataset_df['death_prediction'] = routes_predictions
-        dataset_df['death_prediction_probability'] = routes_predictions_probabilities
+        routes_death_predictions = route_classifier.predict(dataset_df[[aggregation_type]])
+        routes_death_predictions_probabilities = route_classifier.predict_proba(dataset_df[[aggregation_type]])[:, 1]
+        dataset_df['death_prediction'] = routes_death_predictions
+        dataset_df['death_prediction_probability'] = routes_death_predictions_probabilities
 
-        mcc = matthews_corrcoef(dataset_df['death'], routes_predictions)
-        auprc = average_precision_score(dataset_df['death'], routes_predictions_probabilities)
-        f1 = f1_score(dataset_df['death'], routes_predictions)
+        mcc = matthews_corrcoef(dataset_df['death'], routes_death_predictions)
+        auprc = average_precision_score(dataset_df['death'], routes_death_predictions_probabilities)
+        f1 = f1_score(dataset_df['death'], routes_death_predictions)
 
         if config.metric == 'mcc':
             metrics = {'split': dataset_name, 'mcc': mcc, 'auprc': auprc, 'f1': f1}
@@ -50,7 +50,7 @@ def run_one_config(config, routes_train_path, routes_test_path, aggregation_type
         all_metrics.append(metrics)
 
     metrics_df = pd.DataFrame(all_metrics)
-    metrics_df.to_csv(output_dir / 'routes_risk_classified.csv', index=False)
+    metrics_df.to_csv(output_dir / 'routes_risk_results.csv', index=False)
 
     # Plot
     df_melted = metrics_df.melt(id_vars='split', var_name='metric', value_name='value')
@@ -58,7 +58,7 @@ def run_one_config(config, routes_train_path, routes_test_path, aggregation_type
     plt.xlabel("Metric")
     plt.ylabel("Value")
     plt.legend(title='Dataset')
-    plt.savefig(output_dir / 'routes_risk_classified.png', dpi=600, bbox_inches='tight')
+    plt.savefig(output_dir / 'routes_risk_results.png', dpi=600, bbox_inches='tight')
     plt.close()
 
     # Write to file routes scores
@@ -72,7 +72,7 @@ def run_one_config(config, routes_train_path, routes_test_path, aggregation_type
         'death_prediction_probability': 'mean',
     }).reset_index()
     routes_grouped_df.sort_values(by=['death_prediction_probability'], inplace=True)
-    routes_grouped_df['risk'] = routes_grouped_df['death_prediction'].map(lambda x: 'HIGH' if not x else 'LOW')
+    routes_grouped_df['NIS introduction risk'] = routes_grouped_df['death_prediction'].map(lambda x: 'LOW' if x else 'HIGH')
     routes_grouped_df.to_csv(output_dir / 'routes_risk_grouped.csv', index=False)
 
 
