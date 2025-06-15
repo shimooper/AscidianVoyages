@@ -27,9 +27,13 @@ from sklearn.model_selection import train_test_split
 from imblearn.under_sampling import RandomUnderSampler
 from imblearn.pipeline import Pipeline as IMBPipeline
 
+from pathlib import Path
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 import lightning as L
+
+import sys
+sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from analyze_expirement_results.utils import convert_pascal_to_snake_case, get_column_groups_sorted, convert_columns_to_int, \
     get_lived_columns_to_consider, convert_data_to_tensor_for_rnn, \

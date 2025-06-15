@@ -3,12 +3,16 @@ from sklearn.metrics import matthews_corrcoef, average_precision_score, f1_score
 from sklearn.preprocessing import StandardScaler
 from imblearn.under_sampling import RandomUnderSampler
 
+from pathlib import Path
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 import torch.nn as nn
 import torch.optim as optim
 import lightning as L
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
+
+import sys
+sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from analyze_expirement_results.utils import convert_data_to_tensor_for_rnn
 

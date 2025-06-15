@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from analyze_expirement_results.configuration import Config
 
 PROJECT_ROOT_DIR = Path(__file__).resolve().parent.parent
-CONFIG_PATH = PROJECT_ROOT_DIR / 'outputs_cv' / 'configuration_2' / 'config.csv'
+CONFIG_PATH = PROJECT_ROOT_DIR / 'outputs_cv_test_25' / 'configuration_0' / 'config.csv'
 
 DEBUG = False
 
@@ -97,10 +97,10 @@ def main(routes_train_path, routes_test_path, config_path, output_dir):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Prepare data for scoring routes')
     parser.add_argument('--routes_train_path', type=Path,
-                        default=Path('full_routes_aggregated_scores') / 'routes_train_agg.csv')
+                        default=Path('config_stratify/full_routes_aggregated_scores') / 'routes_train_agg.csv')
     parser.add_argument('--routes_test_path', type=Path,
-                        default=Path('full_routes_aggregated_scores') / 'routes_test_agg.csv')
-    parser.add_argument('--output_dir', type=Path, default=Path('full_routes_risk_score'))
+                        default=Path('config_stratify/full_routes_aggregated_scores') / 'routes_test_agg.csv')
+    parser.add_argument('--output_dir', type=Path, default=Path('config_stratify/full_routes_risk_score'))
     args = parser.parse_args()
 
     main(args.routes_train_path, args.routes_test_path, CONFIG_PATH, args.output_dir)

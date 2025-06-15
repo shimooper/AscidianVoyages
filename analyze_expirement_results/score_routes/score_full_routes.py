@@ -13,8 +13,8 @@ from analyze_expirement_results.model_lstm import LSTMModel
 from analyze_expirement_results.model import ScikitModel
 from analyze_expirement_results.configuration import Config
 
-INTERVAL_LENGTH = 4
-OUTPUTS_DIR_PATH = PROJECT_ROOT_DIR / 'analyze_expirement_results' / 'outputs_cv' / 'configuration_2'
+INTERVAL_LENGTH = 3
+OUTPUTS_DIR_PATH = PROJECT_ROOT_DIR / 'analyze_expirement_results' / 'outputs_cv_test_25' / 'configuration_0'
 CONFIG_PATH = OUTPUTS_DIR_PATH / 'config.csv'
 MODELS_PATH = OUTPUTS_DIR_PATH / 'models' / f'{INTERVAL_LENGTH}_day_interval' / 'train_outputs'
 RANDOM_FOREST_MODEL_PATH = MODELS_PATH / 'random_forest_classifier' / 'best_RandomForestClassifier.pkl'
@@ -105,10 +105,12 @@ def score_routes(routes_train_path: Path, routes_test_path: Path, model_path: Pa
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Prepare data for scoring routes')
     parser.add_argument('--routes_train_path', type=Path,
-                        help='Path to the experiment data', default=Path('full_routes') / 'actual_routes_augmented_train.csv')
+                        help='Path to the experiment data', default=Path(
+            'config_stratify/full_routes') / 'actual_routes_augmented_train.csv')
     parser.add_argument('--routes_test_path', type=Path,
-                        help='Path to the experiment data', default=Path('full_routes') / 'actual_routes_augmented_test.csv')
-    parser.add_argument('--output_dir', type=Path, default=Path('full_routes_aggregated_scores'))
+                        help='Path to the experiment data', default=Path(
+            'config_stratify/full_routes') / 'actual_routes_augmented_test.csv')
+    parser.add_argument('--output_dir', type=Path, default=Path('config_stratify/full_routes_aggregated_scores'))
     args = parser.parse_args()
 
     score_routes(args.routes_train_path, args.routes_test_path, RANDOM_FOREST_MODEL_PATH, args.output_dir)

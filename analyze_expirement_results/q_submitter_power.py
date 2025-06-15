@@ -15,6 +15,9 @@ import traceback
 from sys import argv
 from datetime import timedelta
 
+import sys
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+
 from analyze_expirement_results.utils import get_logger, str_to_bool
 
 JOB_EXTENSION = '.slurm'

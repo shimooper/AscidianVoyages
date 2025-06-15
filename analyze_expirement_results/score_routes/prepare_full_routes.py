@@ -4,12 +4,12 @@ import re
 
 PROJECT_ROOT_DIR = Path(__file__).resolve().parent.parent
 
-ACTUAL_EXPERIMENT_DATA = PROJECT_ROOT_DIR / 'outputs_cv' / 'configuration_2' / 'data'
+ACTUAL_EXPERIMENT_DATA = PROJECT_ROOT_DIR / 'outputs_cv_test_25' / 'configuration_0' / 'data'
 ACTUAL_EXPERIMENT_TRAIN_DATA = ACTUAL_EXPERIMENT_DATA / 'train.csv'
 ACTUAL_EXPERIMENT_TEST_DATA = ACTUAL_EXPERIMENT_DATA / 'test.csv'
 
 PLANNED_EXPERIMENT_DATA = Path('planned_routes') / 'all_sampled_routes.csv'
-OUTPUT_DIR = Path('full_routes')
+OUTPUT_DIR = Path('config_stratify/full_routes')
 
 
 def find_first_nan_day(row: pd.Series):

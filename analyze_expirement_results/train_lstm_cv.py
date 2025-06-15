@@ -7,6 +7,9 @@ from sklearn.model_selection import StratifiedKFold
 import torch
 import lightning as L
 
+import sys
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+
 from analyze_expirement_results.model_lstm import train_lstm_with_hyperparameters_train_val
 from analyze_expirement_results.configuration import Config
 from analyze_expirement_results.q_submitter_power import run_step, add_default_step_args

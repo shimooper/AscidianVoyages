@@ -54,16 +54,22 @@ def preprocess_data_by_config(logger, config: Config, routes_df):
     processed_routes_path = config.data_dir_path / 'full.csv'
     routes_df.to_csv(processed_routes_path, index=False)
 
-    ship_names_and_seasons = routes_df[['Name', 'Season']].drop_duplicates()
-    ship_names_and_seasons_no_control = ship_names_and_seasons[ship_names_and_seasons['Name'] != 'CONTROL']
+    routes_no_control = routes_df[routes_df['Name'] != 'CONTROL']
+    routes_no_control['is_dead'] = routes_no_control['dying_day'].notna()
+    representative_routes_df = routes_no_control.groupby(['Name', 'Season'])['is_dead'].agg(
+        lambda x: x.mode().iloc[0]).reset_index()
 
     if config.stratify:
-        stratify_column = ship_names_and_seasons_no_control['Season']
+        stratify_column = representative_routes_df[['is_dead', 'Season']].astype(str).agg('_'.join, axis=1)
     else:
         stratify_column = None
 
+    representative_routes_df = representative_routes_df.drop(columns='is_dead')
     train_ship_names_seasons_df, test_ship_names_seasons_df = train_test_split(
-        ship_names_and_seasons_no_control, test_size=config.test_set_size, random_state=config.random_state, stratify=stratify_column)
+        representative_routes_df, test_size=config.test_set_size, random_state=config.random_state, stratify=stratify_column)
+
+    logger.info(f"Split ships into train and test sets with sizes: {len(train_ship_names_seasons_df)} train and "
+                f"{len(test_ship_names_seasons_df)} test.")
 
     # Add CONTROL routes to the train set
     control_names_seasons = pd.DataFrame({'Name': ['CONTROL', 'CONTROL'], 'Season': ['winter', 'summer']})

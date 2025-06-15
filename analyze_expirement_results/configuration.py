@@ -5,6 +5,9 @@ import platform
 from sklearn.metrics import make_scorer, matthews_corrcoef
 import pandas as pd
 
+import sys
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+
 from analyze_expirement_results.utils import str_to_bool
 
 if platform.system() == "Linux":
@@ -28,7 +31,7 @@ RANDOM_STATE = [0] if not DEBUG_MODE else [0]
 NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH = [0] if not DEBUG_MODE else [0]
 # METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS = ['f1', 'mcc', 'auprc'] if not DEBUG_MODE else ['f1']
 METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS = ['mcc'] if not DEBUG_MODE else ['f1']
-TEST_SET_SIZE = 0.2
+TEST_SET_SIZE = 0.25
 INTERVAL_LENGTH = [1, 2, 3, 4] if not DEBUG_MODE else [3, 4]
 BALANCE_CLASSES_IN_TRAINING = [False, True] if not DEBUG_MODE else [False]
 NN_MAX_EPOCHS = 15 if not DEBUG_MODE else 1
