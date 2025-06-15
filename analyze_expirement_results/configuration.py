@@ -21,7 +21,7 @@ ROOT_DIR = Path(__file__).resolve().parent
 DATA_DIR = ROOT_DIR / 'data'
 DATA_PATH = DATA_DIR / 'Final_Data_Voyages.xlsx'
 PROCESSED_DATA_DIR = DATA_DIR / 'preprocess'
-PROCESSED_DATA_PATH = PROCESSED_DATA_DIR / 'Final_Data_Voyages_Processed_30.csv'
+PROCESSED_DATA_PATH = PROCESSED_DATA_DIR / 'Final_Data_Voyages_Processed_30_filter_short_routes.csv'
 
 INCLUDE_CONTROL_ROUTES = [True]
 INCLUDE_SUSPECTED_ROUTES_PARTS = [False] if not DEBUG_MODE else [True, False]
@@ -32,7 +32,7 @@ NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH = [0] if not DEBUG_MODE else [0]
 # METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS = ['f1', 'mcc', 'auprc'] if not DEBUG_MODE else ['f1']
 METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS = ['mcc'] if not DEBUG_MODE else ['f1']
 TEST_SET_SIZE = 0.25
-INTERVAL_LENGTH = [1, 2, 3, 4] if not DEBUG_MODE else [3, 4]
+INTERVAL_LENGTH = [1, 2, 3, 4, 5, 6] if not DEBUG_MODE else [3, 4]
 BALANCE_CLASSES_IN_TRAINING = [False, True] if not DEBUG_MODE else [False]
 NN_MAX_EPOCHS = 15 if not DEBUG_MODE else 1
 MAX_CLASS_RATIO = 0.25  # Relevant only if BALANCE_CLASSES_IN_TRAINING is True
@@ -64,6 +64,7 @@ class Config:
     balance_classes: bool = False
     max_classes_ratio: float = MAX_CLASS_RATIO  # Relevant only if balance_classes is True
     run_lstm_configurations_in_parallel: bool = False
+    max_interval_length: int = max(INTERVAL_LENGTH)
 
     def to_csv(self, path: Path):
         config_df = pd.DataFrame(list(asdict(self).items()), columns=['key', 'value'])

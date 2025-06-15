@@ -75,7 +75,8 @@ class Model:
 
     def convert_route_to_intervals(self, route_row: pd.Series, lived_columns):
         days_data = []
-        for col in lived_columns[-1:2:-1]:
+        start_interval_min_day = self.config.max_interval_length - 2
+        for col in lived_columns[-1:start_interval_min_day:-1]:
             col_day = int(col.split(' ')[1])
             if pd.isna(route_row[f'Temp {col_day}']):
                 continue
