@@ -134,16 +134,16 @@ class Model:
 
         sns.stripplot(data=df_temp, x='feature', y='value', hue='death_label', palette=SURVIVAL_COLORS, jitter=True, alpha=0.7, ax=axes[0],
                       legend=False)
-        axes[0].set_ylabel("Temperature (celsius)", fontsize=12)
+        axes[0].set_ylabel("Temperature (°C)", fontsize=14)
         axes[0].set_xlabel(None)
 
         sns.stripplot(data=df_salinity, x='feature', y='value', hue='death_label', palette=SURVIVAL_COLORS, jitter=True, alpha=0.7, ax=axes[1],
                       legend=False)
-        axes[1].set_ylabel("Salinity (ppt)", fontsize=12)
+        axes[1].set_ylabel("Salinity (ppt)", fontsize=14)
         axes[1].set_xlabel(None)
 
         sns.stripplot(data=df_time, x='feature', y='value', hue='death_label', palette=SURVIVAL_COLORS, jitter=True, alpha=0.7, ax=axes[2])
-        axes[2].set_ylabel("Days passed", fontsize=12)
+        axes[2].set_ylabel("Days", fontsize=14)
         axes[2].set_xlabel(None)
         axes[2].legend(title=None)
 
