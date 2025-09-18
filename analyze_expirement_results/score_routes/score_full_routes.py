@@ -1,6 +1,7 @@
 import math
 from pathlib import Path
 import pandas as pd
+import numpy as np
 import argparse
 import joblib
 import torch
@@ -14,7 +15,7 @@ from analyze_expirement_results.model import ScikitModel
 from analyze_expirement_results.configuration import Config
 
 INTERVAL_LENGTH = 3
-OUTPUTS_DIR_PATH = PROJECT_ROOT_DIR / 'analyze_expirement_results' / 'outputs_cv_test_25' / 'configuration_0'
+OUTPUTS_DIR_PATH = PROJECT_ROOT_DIR / 'analyze_expirement_results' / 'outputs_noa_figures' / 'configuration_0'
 CONFIG_PATH = OUTPUTS_DIR_PATH / 'config.csv'
 MODELS_PATH = OUTPUTS_DIR_PATH / 'models' / f'{INTERVAL_LENGTH}_day_interval' / 'train_outputs'
 RANDOM_FOREST_MODEL_PATH = MODELS_PATH / 'random_forest_classifier' / 'best_RandomForestClassifier.pkl'
@@ -54,10 +55,10 @@ def calc_aggregated_routes_score(routes_df, model_path):
         route_log_multiply_survival_probabilities.append(sum(math.log(p + epsilon) for p in y_survival_probabilities))
 
     routes_df['death'] = route_died
-    routes_df['min'] = route_min_survival_probabilities
-    routes_df['max'] = route_max_survival_probabilities
-    routes_df['mean'] = route_mean_survival_probabilities
-    routes_df['log_multiply'] = route_log_multiply_survival_probabilities
+    routes_df['min'] = np.around(route_min_survival_probabilities, 4)
+    routes_df['max'] = np.around(route_max_survival_probabilities, 4)
+    routes_df['mean'] = np.around(route_mean_survival_probabilities, 4)
+    routes_df['log_multiply'] = np.around(route_log_multiply_survival_probabilities, 4)
 
     return routes_df[['Season', 'Name', 'Replicate', 'death', 'min', 'max', 'mean', 'log_multiply']]
 

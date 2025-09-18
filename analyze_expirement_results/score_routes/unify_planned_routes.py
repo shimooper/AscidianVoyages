@@ -3,6 +3,7 @@ import pandas as pd
 
 PLANNED_SUMMER_ROUTES_PATH = Path('planned_routes/sampled_summer_routes.csv')
 PLANNED_WINTER_ROUTES_PATH = Path('planned_routes/sampled_winter_routes.csv')
+ALL_PLANNED_ROUTES_PATH = Path('planned_routes/all_sampled_routes.csv')
 
 
 def unify_planned_routes(planned_summer_routes_path: Path, planned_winter_routes_path: Path):
@@ -13,7 +14,7 @@ def unify_planned_routes(planned_summer_routes_path: Path, planned_winter_routes
 
     # Concatenate the two DataFrames
     unified_routes = pd.concat([summer_routes, winter_routes], ignore_index=True)
-    unified_routes.to_csv('all_sampled_routes.csv', index=False)
+    unified_routes.to_csv(ALL_PLANNED_ROUTES_PATH, index=False)
 
 
 if __name__ == "__main__":

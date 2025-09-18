@@ -4,7 +4,7 @@ import re
 
 PROJECT_ROOT_DIR = Path(__file__).resolve().parent.parent
 
-ACTUAL_EXPERIMENT_DATA = PROJECT_ROOT_DIR / 'outputs_cv_test_25' / 'configuration_0' / 'data'
+ACTUAL_EXPERIMENT_DATA = PROJECT_ROOT_DIR / 'outputs_noa_figures' / 'configuration_0' / 'data'
 ACTUAL_EXPERIMENT_TRAIN_DATA = ACTUAL_EXPERIMENT_DATA / 'train.csv'
 ACTUAL_EXPERIMENT_TEST_DATA = ACTUAL_EXPERIMENT_DATA / 'test.csv'
 

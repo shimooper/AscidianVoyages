@@ -1,0 +1,4 @@
+model_compared,p_val_ttest,p_val_wilcox,mean_diff,p_val_ttest_fdr_corrected,significant_ttest_fdr,p_val_wilcox_fdr_corrected,significant_wilcox_fdr
+2_day_interval,,1.0,0.0,,False,1.0,False
+3_day_interval,,1.0,0.0,,False,1.0,False
+4_day_interval,,1.0,0.0,,False,1.0,False
