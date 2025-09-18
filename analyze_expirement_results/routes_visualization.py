@@ -53,17 +53,17 @@ def plot_timelines(config):
 
     df = df[df['Name'] != 'CONTROL']  # Exclude control routes for better visualization
 
-    plot_timeline(df, lived_columns, temperature_columns, 'temperature', 'Temperature (celsius)', visualizations_dir)
+    plot_timeline(df, lived_columns, temperature_columns, 'temperature', 'Temperature (°C)', visualizations_dir)
     plot_timeline(df, lived_columns, salinity_columns, 'salinity', 'Salinity (ppt)', visualizations_dir)
 
     routes_summer_df = df[df['Season'] == 'summer']
     plot_timeline(routes_summer_df, lived_columns, temperature_columns, 'temperature_in_summer',
-                  'Temperature (celsius)', visualizations_dir)
+                  'Temperature (°C)', visualizations_dir)
     plot_timeline(routes_summer_df, lived_columns, salinity_columns, 'salinity_in_summer', 'Salinity (ppt)',
                   visualizations_dir)
 
     routes_winter_df = df[df['Season'] == 'winter']
     plot_timeline(routes_winter_df, lived_columns, temperature_columns, 'temperature_in_winter',
-                  'Temperature (celsius)', visualizations_dir)
+                  'Temperature (°C)', visualizations_dir)
     plot_timeline(routes_winter_df, lived_columns, salinity_columns, 'salinity_in_winter', 'Salinity (ppt)',
                   visualizations_dir)

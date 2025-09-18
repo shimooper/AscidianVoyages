@@ -136,15 +136,18 @@ class Model:
                       legend=False)
         axes[0].set_ylabel("Temperature (°C)", fontsize=14)
         axes[0].set_xlabel(None)
+        axes[0].tick_params(axis='x', labelsize=14)
 
         sns.stripplot(data=df_salinity, x='feature', y='value', hue='death_label', palette=SURVIVAL_COLORS, jitter=True, alpha=0.7, ax=axes[1],
                       legend=False)
         axes[1].set_ylabel("Salinity (ppt)", fontsize=14)
         axes[1].set_xlabel(None)
+        axes[1].tick_params(axis='x', labelsize=14)
 
         sns.stripplot(data=df_time, x='feature', y='value', hue='death_label', palette=SURVIVAL_COLORS, jitter=True, alpha=0.7, ax=axes[2])
         axes[2].set_ylabel("Days", fontsize=14)
         axes[2].set_xlabel(None)
+        axes[2].tick_params(axis='x', labelsize=14)
         axes[2].legend(title=None)
 
         plt.savefig(self.model_data_dir / "scatter_plot.png", dpi=600, bbox_inches='tight')
@@ -158,8 +161,8 @@ class Model:
         indices = np.argsort(features_importance)[::-1]
         plt.figure(figsize=(10, 6))
         plt.bar(list(range(len(feature_names))), features_importance[indices], align="center")
-        plt.xticks(list(range(len(feature_names))), [feature_names[i] for i in indices], fontsize=12)
-        plt.xlabel('Features', fontsize=14)
+        plt.xticks(list(range(len(feature_names))), [feature_names[i] for i in indices], fontsize=14)
+        plt.xlabel('')
         plt.ylabel('Feature Importance', fontsize=14)
         plt.tight_layout()
         plt.savefig(output_dir / f'{classifier_name}_feature_importance.png', dpi=600)
@@ -343,11 +346,11 @@ class ScikitModel(Model):
         df_features = pd.DataFrame()
         df_features["min_temp"] = X_df[temperature_cols].min(axis=1)
         df_features["max_temp"] = X_df[temperature_cols].max(axis=1)
-        df_features["max_temp_diff"] = df_features["max_temp"] - df_features["min_temp"]
+        df_features["Δtemp"] = df_features["max_temp"] - df_features["min_temp"]
 
         df_features["min_sal"] = X_df[salinity_cols].min(axis=1)
         df_features["max_sal"] = X_df[salinity_cols].max(axis=1)
-        df_features["max_sal_diff"] = df_features["max_sal"] - df_features["min_sal"]
+        df_features["Δsal"] = df_features["max_sal"] - df_features["min_sal"]
 
         df_features["days_passed"] = X_df[max(time_cols, key=extract_number)]
 
