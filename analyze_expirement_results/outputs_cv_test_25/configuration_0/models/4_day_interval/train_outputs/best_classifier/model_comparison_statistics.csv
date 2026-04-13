@@ -1,0 +1,4 @@
+model_compared,p_val_ttest,p_val_wilcox,mean_diff,p_val_ttest_fdr_corrected,significant_ttest_fdr,p_val_wilcox_fdr_corrected,significant_wilcox_fdr
+DecisionTreeClassifier,0.4768436990459684,1.0,0.022642522686521227,0.4768436990459684,False,1.0,False
+XGBClassifier,0.4768436990459684,1.0,0.022642522686521227,0.4768436990459684,False,1.0,False
+LSTMClassifier,0.4768436990459684,1.0,0.022642522686521227,0.4768436990459684,False,1.0,False

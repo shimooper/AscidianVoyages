@@ -1,0 +1,106 @@
+/home/ai_center/ai_users/yairshimony/ships/analyze_expirement_results/preprocess.py:58: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  routes_no_control['is_dead'] = routes_no_control['dying_day'].notna()
+[rank: 0] Seed set to 0
+GPU available: False, used: False
+TPU available: False, using: 0 TPU cores
+HPU available: False, using: 0 HPUs
+
+  | Name      | Type    | Params | Mode 
+----------------------------------------------
+0 | lstm      | LSTM    | 416    | train
+1 | fc1       | Linear  | 72     | train
+2 | fc2       | Linear  | 9      | train
+3 | sigmoid   | Sigmoid | 0      | train
+4 | criterion | BCELoss | 0      | train
+----------------------------------------------
+497       Trainable params
+0         Non-trainable params
+497       Total params
+0.002     Total estimated model params size (MB)
+5         Modules in train mode
+0         Modules in eval mode
+SLURM auto-requeueing enabled. Setting signal handlers.
+/home/ai_center/ai_users/yairshimony/miniconda/envs/ships/lib/python3.10/site-packages/lightning/pytorch/trainer/connectors/data_connector.py:425: The 'val_dataloader' does not have many workers which may be a bottleneck. Consider increasing the value of the `num_workers` argument` to `num_workers=255` in the `DataLoader` to improve performance.
+/home/ai_center/ai_users/yairshimony/miniconda/envs/ships/lib/python3.10/site-packages/lightning/pytorch/trainer/connectors/data_connector.py:425: The 'train_dataloader' does not have many workers which may be a bottleneck. Consider increasing the value of the `num_workers` argument` to `num_workers=255` in the `DataLoader` to improve performance.
+[rank: 0] Seed set to 0
+GPU available: False, used: False
+TPU available: False, using: 0 TPU cores
+HPU available: False, using: 0 HPUs
+
+  | Name      | Type    | Params | Mode 
+----------------------------------------------
+0 | lstm      | LSTM    | 992    | train
+1 | fc1       | Linear  | 72     | train
+2 | fc2       | Linear  | 9      | train
+3 | sigmoid   | Sigmoid | 0      | train
+4 | criterion | BCELoss | 0      | train
+----------------------------------------------
+1.1 K     Trainable params
+0         Non-trainable params
+1.1 K     Total params
+0.004     Total estimated model params size (MB)
+5         Modules in train mode
+0         Modules in eval mode
+SLURM auto-requeueing enabled. Setting signal handlers.
+/home/ai_center/ai_users/yairshimony/miniconda/envs/ships/lib/python3.10/site-packages/lightning/pytorch/trainer/connectors/data_connector.py:425: The 'val_dataloader' does not have many workers which may be a bottleneck. Consider increasing the value of the `num_workers` argument` to `num_workers=255` in the `DataLoader` to improve performance.
+/home/ai_center/ai_users/yairshimony/miniconda/envs/ships/lib/python3.10/site-packages/lightning/pytorch/trainer/connectors/data_connector.py:425: The 'train_dataloader' does not have many workers which may be a bottleneck. Consider increasing the value of the `num_workers` argument` to `num_workers=255` in the `DataLoader` to improve performance.
+/home/ai_center/ai_users/yairshimony/miniconda/envs/ships/lib/python3.10/site-packages/lightning/pytorch/loops/fit_loop.py:310: The number of training batches (30) is smaller than the logging interval Trainer(log_every_n_steps=50). Set a lower value for log_every_n_steps if you want to see logs for the training epoch.
+/home/ai_center/ai_users/yairshimony/miniconda/envs/ships/lib/python3.10/site-packages/scipy/stats/_wilcoxon.py:172: RuntimeWarning: invalid value encountered in scalar divide
+  z = (r_plus - mn) / se
+[rank: 0] Seed set to 0
+GPU available: False, used: False
+TPU available: False, using: 0 TPU cores
+HPU available: False, using: 0 HPUs
+
+  | Name      | Type    | Params | Mode 
+----------------------------------------------
+0 | lstm      | LSTM    | 416    | train
+1 | fc1       | Linear  | 72     | train
+2 | fc2       | Linear  | 9      | train
+3 | sigmoid   | Sigmoid | 0      | train
+4 | criterion | BCELoss | 0      | train
+----------------------------------------------
+497       Trainable params
+0         Non-trainable params
+497       Total params
+0.002     Total estimated model params size (MB)
+5         Modules in train mode
+0         Modules in eval mode
+SLURM auto-requeueing enabled. Setting signal handlers.
+/home/ai_center/ai_users/yairshimony/miniconda/envs/ships/lib/python3.10/site-packages/lightning/pytorch/trainer/connectors/data_connector.py:425: The 'val_dataloader' does not have many workers which may be a bottleneck. Consider increasing the value of the `num_workers` argument` to `num_workers=255` in the `DataLoader` to improve performance.
+/home/ai_center/ai_users/yairshimony/miniconda/envs/ships/lib/python3.10/site-packages/lightning/pytorch/trainer/connectors/data_connector.py:425: The 'train_dataloader' does not have many workers which may be a bottleneck. Consider increasing the value of the `num_workers` argument` to `num_workers=255` in the `DataLoader` to improve performance.
+[rank: 0] Seed set to 0
+GPU available: False, used: False
+TPU available: False, using: 0 TPU cores
+HPU available: False, using: 0 HPUs
+
+  | Name      | Type    | Params | Mode 
+----------------------------------------------
+0 | lstm      | LSTM    | 992    | train
+1 | fc1       | Linear  | 72     | train
+2 | fc2       | Linear  | 9      | train
+3 | sigmoid   | Sigmoid | 0      | train
+4 | criterion | BCELoss | 0      | train
+----------------------------------------------
+1.1 K     Trainable params
+0         Non-trainable params
+1.1 K     Total params
+0.004     Total estimated model params size (MB)
+5         Modules in train mode
+0         Modules in eval mode
+SLURM auto-requeueing enabled. Setting signal handlers.
+/home/ai_center/ai_users/yairshimony/miniconda/envs/ships/lib/python3.10/site-packages/lightning/pytorch/trainer/connectors/data_connector.py:425: The 'val_dataloader' does not have many workers which may be a bottleneck. Consider increasing the value of the `num_workers` argument` to `num_workers=255` in the `DataLoader` to improve performance.
+/home/ai_center/ai_users/yairshimony/miniconda/envs/ships/lib/python3.10/site-packages/lightning/pytorch/trainer/connectors/data_connector.py:425: The 'train_dataloader' does not have many workers which may be a bottleneck. Consider increasing the value of the `num_workers` argument` to `num_workers=255` in the `DataLoader` to improve performance.
+/home/ai_center/ai_users/yairshimony/miniconda/envs/ships/lib/python3.10/site-packages/scipy/stats/_wilcoxon.py:172: RuntimeWarning: invalid value encountered in scalar divide
+  z = (r_plus - mn) / se
+/home/ai_center/ai_users/yairshimony/miniconda/envs/ships/lib/python3.10/site-packages/scipy/stats/_wilcoxon.py:172: RuntimeWarning: invalid value encountered in scalar divide
+  z = (r_plus - mn) / se
+/home/ai_center/ai_users/yairshimony/miniconda/envs/ships/lib/python3.10/site-packages/scipy/stats/_wilcoxon.py:172: RuntimeWarning: invalid value encountered in scalar divide
+  z = (r_plus - mn) / se
+slurmstepd: error: _cgroup_procs_check: failed on path (null)/cgroup.procs: No such file or directory
+slurmstepd: error: Cannot write to cgroup.procs for (null)
+slurmstepd: error: Unable to move pid 1439535 to init root cgroup (null)
