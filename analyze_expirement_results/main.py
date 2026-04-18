@@ -9,7 +9,7 @@ from run_analysis_of_config import run_analysis_of_one_config
 from q_submitter_power import submit_mini_batch, wait_for_results, get_job_logger
 
 
-def create_config(flag_combination, configuration_id, cpus, outputs_dir, do_feature_selection, run_lstm_configurations_in_parallel, error_file_path):
+def create_config(flag_combination, configuration_id, cpus, outputs_dir, do_feature_selection, run_lstm_configurations_in_parallel, run_lstm, error_file_path):
     include_control_flag, include_suspected_flag, number_of_future_days, stratify_flag, random_state, metric, balance_classes = flag_combination
 
     outputs_dir_path = outputs_dir / f'configuration_{configuration_id}'
@@ -30,7 +30,8 @@ def create_config(flag_combination, configuration_id, cpus, outputs_dir, do_feat
         models_dir_path=outputs_dir_path / 'models',
         do_feature_selection=do_feature_selection,
         balance_classes=balance_classes,
-        run_lstm_configurations_in_parallel=run_lstm_configurations_in_parallel
+        run_lstm_configurations_in_parallel=run_lstm_configurations_in_parallel,
+        run_lstm=run_lstm
     )
     config_path = outputs_dir_path / 'config.csv'
     config.to_csv(config_path)
@@ -38,7 +39,7 @@ def create_config(flag_combination, configuration_id, cpus, outputs_dir, do_feat
     return config, config_path
 
 
-def main(outputs_dir, cpus, do_feature_selection, run_configurations_in_parallel, run_lstm_configurations_in_parallel):
+def main(outputs_dir, cpus, do_feature_selection, run_configurations_in_parallel, run_lstm_configurations_in_parallel, run_lstm):
     print('Starting analysis of experiment results...')
 
     outputs_dir.mkdir(exist_ok=True, parents=True)
@@ -59,14 +60,14 @@ def main(outputs_dir, cpus, do_feature_selection, run_configurations_in_parallel
         script_path = ROOT_DIR / 'run_analysis_of_config.py'
         for flags_combination in flags_combinations:
             _, config_path = create_config(flags_combination, configuration_id, 8,
-                                   outputs_dir, do_feature_selection, run_lstm_configurations_in_parallel, error_file_path)
+                                   outputs_dir, do_feature_selection, run_lstm_configurations_in_parallel, run_lstm, error_file_path)
             submit_mini_batch(main_logger, script_path, [[config_path]], logs_dir, f'config_{configuration_id}',
                               error_file_path, num_of_cpus=8)
             configuration_id += 1
         wait_for_results(main_logger, script_path, logs_dir, configuration_id, error_file_path)
     else:
         for flags_combination in flags_combinations:
-            config, _ = create_config(flags_combination, configuration_id, cpus, outputs_dir, do_feature_selection, run_lstm_configurations_in_parallel, error_file_path)
+            config, _ = create_config(flags_combination, configuration_id, cpus, outputs_dir, do_feature_selection, run_lstm_configurations_in_parallel, run_lstm, error_file_path)
             run_analysis_of_one_config(main_logger, config)
             configuration_id += 1
 
@@ -80,7 +81,8 @@ if __name__ == "__main__":
     parser.add_argument('--do_feature_selection', type=str_to_bool, default=False)
     parser.add_argument('--run_configurations_in_parallel', type=str_to_bool, default=False)
     parser.add_argument('--run_lstm_configurations_in_parallel', type=str_to_bool, default=False)
+    parser.add_argument('--run_lstm', type=str_to_bool, default=True)
 
     args = parser.parse_args()
     main(ROOT_DIR / args.outputs_dir_name, args.cpus, args.do_feature_selection, args.run_configurations_in_parallel,
-         args.run_lstm_configurations_in_parallel)
+         args.run_lstm_configurations_in_parallel, args.run_lstm)

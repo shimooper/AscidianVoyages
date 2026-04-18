@@ -302,7 +302,8 @@ class ScikitModel(Model):
         cv_splitter = StratifiedKFold(n_splits=5, shuffle=True, random_state=self.config.random_state)
         best_classifiers_metrics = {}
         self.train_tree_models(logger, Xs_train, Ys_train, Xs_test, Ys_test, cv_splitter, best_classifiers_metrics)
-        self.train_lstm(logger, Xs_train, Xs_test, Ys_train, Ys_test, cv_splitter, best_classifiers_metrics)
+        if self.config.run_lstm:
+            self.train_lstm(logger, Xs_train, Xs_test, Ys_train, Ys_test, cv_splitter, best_classifiers_metrics)
 
         best_classifier_dir = self.model_train_dir / 'best_classifier'
         best_classifier_dir.mkdir(exist_ok=True, parents=True)
@@ -484,7 +485,7 @@ class ScikitModel(Model):
 
         if not DEBUG_MODE:
             rfc_grid = {
-                'n_estimators': [5, 10, 20],
+                'n_estimators': [5, 10],
                 'max_depth': [3, 5],
                 'min_samples_split': [2, 10],
                 'min_samples_leaf': [1, 2, 5],
@@ -506,7 +507,7 @@ class ScikitModel(Model):
         if not DEBUG_MODE:
             decision_tree_grid = {
                 'max_depth': [3, 5],
-                'min_samples_split': [2, 5, 10],
+                'min_samples_split': [2, 10],
                 'min_samples_leaf': [1, 2, 5],
                 'random_state': [self.config.random_state],
                 'class_weight': ['balanced', None],
@@ -524,7 +525,7 @@ class ScikitModel(Model):
             Ys_trains_classes_counts = Counter(Ys_train)
             xgboost_grid = {
                 'learning_rate': [0.01, 0.1],
-                'n_estimators': [5, 10, 20],
+                'n_estimators': [5, 10],
                 'max_depth': [3, 5],
                 'booster': ['dart'],
                 'n_jobs': [1],

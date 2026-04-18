@@ -64,6 +64,7 @@ class Config:
     balance_classes: bool = False
     max_classes_ratio: float = MAX_CLASS_RATIO  # Relevant only if balance_classes is True
     run_lstm_configurations_in_parallel: bool = False
+    run_lstm: bool = True
 
     def to_csv(self, path: Path):
         config_df = pd.DataFrame(list(asdict(self).items()), columns=['key', 'value'])
