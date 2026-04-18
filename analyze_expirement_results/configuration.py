@@ -13,7 +13,7 @@ from analyze_expirement_results.utils import str_to_bool
 if platform.system() == "Linux":
     DEBUG_MODE = False
 elif platform.system() == "Windows":
-    DEBUG_MODE = True
+    DEBUG_MODE = False
 else:
     raise Exception(f"Unsupported platform: {platform.system()}")
 
@@ -30,7 +30,7 @@ STRATIFY_TRAIN_TEST_SPLIT = [True] if not DEBUG_MODE else [True]
 RANDOM_STATE = [0] if not DEBUG_MODE else [0]
 NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH = [0] if not DEBUG_MODE else [0]
 # METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS = ['f1', 'mcc', 'auprc'] if not DEBUG_MODE else ['f1']
-METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS = ['mcc'] if not DEBUG_MODE else ['f1']
+METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS = ['mcc'] if not DEBUG_MODE else ['f1', 'mcc']
 TEST_SET_SIZE = 0.25
 INTERVAL_LENGTH = [1, 2, 3, 4] if not DEBUG_MODE else [3, 4]
 BALANCE_CLASSES_IN_TRAINING = [False] if not DEBUG_MODE else [False]

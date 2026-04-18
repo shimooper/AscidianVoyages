@@ -2,3 +2,4 @@
 __pycache__/
 analyze_expirement_results/outputs/
 analyze_expirement_results/outputs_optuna/
+analyze_expirement_results/outputs*
