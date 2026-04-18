@@ -271,6 +271,22 @@ class Model:
         plt.savefig(output_dir / f'{classifier_name}_pdp_ice_{split_label}.png', dpi=600, bbox_inches='tight')
         plt.close()
 
+    def plot_predictions_correlations(self, logger, all_pred_probs, output_dir):
+        pred_probs_df = pd.DataFrame(all_pred_probs)
+        pred_probs_df.to_csv(output_dir / 'models_test_pred_probs.csv', index=False)
+        corr_matrix = pred_probs_df.corr()
+        corr_matrix.to_csv(output_dir / 'models_pred_probs_correlations.csv')
+        logger.info(f"Saved model prediction probability correlations to {output_dir / 'models_pred_probs_correlations.csv'}")
+
+        n = len(corr_matrix)
+        fig, ax = plt.subplots(figsize=(max(4, n * 1.5), max(3, n * 1.2)))
+        sns.heatmap(corr_matrix, annot=True, fmt='.2f', vmin=-1, vmax=1, center=0,
+                    cmap='coolwarm', square=True, linewidths=0.5, ax=ax)
+        ax.set_title('Prediction Probability Correlations Between Models', fontsize=13)
+        plt.tight_layout()
+        plt.savefig(output_dir / 'models_pred_probs_correlations.png', dpi=600, bbox_inches='tight')
+        plt.close()
+
     def test_on_test_data(self, logger, Ys_test, y_pred_probs, y_pred, output_dir):
         mcc_on_test = matthews_corrcoef(Ys_test, y_pred)
         auprc_on_test = average_precision_score(Ys_test, y_pred_probs)
@@ -323,9 +339,11 @@ class ScikitModel(Model):
     def fit_and_test(self, logger, Xs_train, Ys_train, Xs_test, Ys_test):
         cv_splitter = StratifiedKFold(n_splits=5, shuffle=True, random_state=self.config.random_state)
         best_classifiers_metrics = {}
-        self.train_tree_models(logger, Xs_train, Ys_train, Xs_test, Ys_test, cv_splitter, best_classifiers_metrics)
+        all_pred_probs = self.train_tree_models(logger, Xs_train, Ys_train, Xs_test, Ys_test, cv_splitter, best_classifiers_metrics)
         if self.config.run_lstm:
-            self.train_lstm(logger, Xs_train, Xs_test, Ys_train, Ys_test, cv_splitter, best_classifiers_metrics)
+            lstm_pred_probs = self.train_lstm(logger, Xs_train, Xs_test, Ys_train, Ys_test, cv_splitter, best_classifiers_metrics)
+            if lstm_pred_probs is not None:
+                all_pred_probs['LSTMClassifier'] = lstm_pred_probs
 
         best_classifier_dir = self.model_train_dir / 'best_classifier'
         best_classifier_dir.mkdir(exist_ok=True, parents=True)
@@ -343,6 +361,10 @@ class ScikitModel(Model):
                     f"them to {best_classifier_dir / 'best_classifier_from_each_class.csv'}")
 
         plot_models_comparison(best_classifiers_df, best_classifier_dir, self.config.metric)
+
+        # Correlations between model predictions on test data
+        if len(all_pred_probs) > 1:
+            self.plot_predictions_correlations(logger, all_pred_probs, best_classifier_dir)
 
         # Save metadata
         metadata = {
@@ -380,6 +402,7 @@ class ScikitModel(Model):
         return df_features
 
     def train_tree_models(self, logger, Xs_train, Ys_train, Xs_test, Ys_test, cv_splitter, best_classifiers_metrics):
+        all_pred_probs = {}
         Xs_train_features = self.convert_X_to_features(Xs_train)
         Xs_test_features = self.convert_X_to_features(Xs_test)
         Xs_train_features.to_csv(self.model_data_dir / 'Xs_train_features.csv', index=False)
@@ -467,8 +490,14 @@ class ScikitModel(Model):
                 y_pred = Ys_test_predictions.argmax(axis=1)
                 self.test_on_test_data(logger, Ys_test, y_pred_probs, y_pred, classifier_output_dir)
 
+                pd.Series(y_pred_probs, name='pred_prob').to_csv(
+                    classifier_output_dir / f'{class_name}_test_pred_probs.csv', index=False)
+                all_pred_probs[class_name] = y_pred_probs
+
             except Exception as e:
                 logger.exception(f"Failed to train classifier {class_name} with error: {e}")
+
+        return all_pred_probs
 
     def create_classifiers_and_param_grids(self, Ys_train, adjust_to_pipeline=False):
         knn_grid = {
@@ -685,3 +714,7 @@ class ScikitModel(Model):
             y_pred_probs = torch.cat([final_model(x) for x, _ in test_data_loader]).cpu().numpy().flatten()
             y_pred = (y_pred_probs > 0.5).astype(int)
         self.test_on_test_data(logger, Ys_test, y_pred_probs, y_pred, classifier_output_dir)
+
+        pd.Series(y_pred_probs, name='pred_prob').to_csv(
+            classifier_output_dir / 'LSTMClassifier_test_pred_probs.csv', index=False)
+        return y_pred_probs
