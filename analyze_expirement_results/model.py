@@ -130,6 +130,7 @@ class Model:
         df_time = full_df[['days_passed', 'death_label']].melt(id_vars='death_label', var_name='feature',
                                                                value_name='value')
 
+        # Scatter plot
         fig, axes = plt.subplots(1, 3, figsize=(18, 6))
 
         sns.stripplot(data=df_temp, x='feature', y='value', hue='death_label', palette=SURVIVAL_COLORS, jitter=True, alpha=0.7, ax=axes[0],
@@ -151,6 +152,30 @@ class Model:
         axes[2].legend(title=None)
 
         plt.savefig(self.model_data_dir / "scatter_plot.png", dpi=600, bbox_inches='tight')
+        plt.close()
+
+        # Box plot
+        fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+
+        sns.boxplot(data=df_temp, x='feature', y='value', hue='death_label', palette=SURVIVAL_COLORS, ax=axes[0],
+                    legend=False)
+        axes[0].set_ylabel("Temperature (°C)", fontsize=14)
+        axes[0].set_xlabel(None)
+        axes[0].tick_params(axis='x', labelsize=14)
+
+        sns.boxplot(data=df_salinity, x='feature', y='value', hue='death_label', palette=SURVIVAL_COLORS, ax=axes[1],
+                    legend=False)
+        axes[1].set_ylabel("Salinity (ppt)", fontsize=14)
+        axes[1].set_xlabel(None)
+        axes[1].tick_params(axis='x', labelsize=14)
+
+        sns.boxplot(data=df_time, x='feature', y='value', hue='death_label', palette=SURVIVAL_COLORS, ax=axes[2])
+        axes[2].set_ylabel("Days", fontsize=14)
+        axes[2].set_xlabel(None)
+        axes[2].tick_params(axis='x', labelsize=14)
+        axes[2].legend(title=None)
+
+        plt.savefig(self.model_data_dir / "box_plot.png", dpi=600, bbox_inches='tight')
         plt.close()
 
     def run_analysis(self, logger):
