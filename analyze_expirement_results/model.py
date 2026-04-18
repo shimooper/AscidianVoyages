@@ -13,7 +13,7 @@ import sklearn
 from sklearn.model_selection import GridSearchCV, StratifiedKFold, cross_val_score, PredefinedSplit
 from sklearn.metrics import matthews_corrcoef, average_precision_score, f1_score
 from sklearn.tree import DecisionTreeClassifier, plot_tree
-from sklearn.inspection import DecisionBoundaryDisplay
+from sklearn.inspection import DecisionBoundaryDisplay, PartialDependenceDisplay
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
@@ -249,6 +249,28 @@ class Model:
         plt.savefig(output_dir / 'decision_functions_on_features_pairs_plot.png', dpi=600)
         plt.close()
 
+    @staticmethod
+    def plot_pdp_ice(classifier_name, estimator, X, output_dir, split_label):
+        features = list(X.columns)
+        n_features = len(features)
+        fig, axes = plt.subplots(1, n_features, figsize=(4 * n_features, 5), constrained_layout=True)
+        if n_features == 1:
+            axes = [axes]
+        PartialDependenceDisplay.from_estimator(
+            estimator,
+            X,
+            features=features,
+            kind='both',
+            subsample=min(100, len(X)),
+            ax=axes,
+            ice_lines_kw={'alpha': 0.1, 'color': 'steelblue'},
+            pd_line_kw={'color': 'red', 'linewidth': 2},
+            random_state=0,
+        )
+        fig.suptitle(f'PDP + ICE — {classifier_name} ({split_label})', fontsize=14)
+        plt.savefig(output_dir / f'{classifier_name}_pdp_ice_{split_label}.png', dpi=600, bbox_inches='tight')
+        plt.close()
+
     def test_on_test_data(self, logger, Ys_test, y_pred_probs, y_pred, output_dir):
         mcc_on_test = matthews_corrcoef(Ys_test, y_pred)
         auprc_on_test = average_precision_score(Ys_test, y_pred_probs)
@@ -427,6 +449,8 @@ class ScikitModel(Model):
                                   'XGBClassifier']:
                     self.plot_feature_importance(class_name, Xs_train_features.columns,
                                                  best_estimator.feature_importances_, classifier_output_dir)
+                    self.plot_pdp_ice(class_name, best_estimator, Xs_train_features, classifier_output_dir, 'train')
+                    self.plot_pdp_ice(class_name, best_estimator, Xs_test_features, classifier_output_dir, 'test')
 
                 if class_name == 'DecisionTreeClassifier':
                     self.plot_decision_tree(best_estimator, list(Xs_train_features.columns), classifier_output_dir)
@@ -485,7 +509,7 @@ class ScikitModel(Model):
 
         if not DEBUG_MODE:
             rfc_grid = {
-                'n_estimators': [5, 10],
+                'n_estimators': [5, 10, 20],
                 'max_depth': [3, 5],
                 'min_samples_split': [2, 10],
                 'min_samples_leaf': [1, 2, 5],
@@ -495,7 +519,7 @@ class ScikitModel(Model):
             }
         else:
             rfc_grid = {
-                'n_estimators': [5, 10],
+                'n_estimators': [5, 10, 20],
                 'max_depth': [None],
                 'min_samples_split': [2],
                 'min_samples_leaf': [1],
@@ -525,7 +549,7 @@ class ScikitModel(Model):
             Ys_trains_classes_counts = Counter(Ys_train)
             xgboost_grid = {
                 'learning_rate': [0.01, 0.1],
-                'n_estimators': [5, 10],
+                'n_estimators': [5, 10, 20],
                 'max_depth': [3, 5],
                 'booster': ['dart'],
                 'n_jobs': [1],
