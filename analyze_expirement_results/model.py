@@ -15,7 +15,7 @@ from sklearn.metrics import matthews_corrcoef, average_precision_score, f1_score
 from sklearn.tree import DecisionTreeClassifier, plot_tree
 from sklearn.inspection import DecisionBoundaryDisplay, PartialDependenceDisplay
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, VotingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.neural_network import MLPClassifier
 import xgboost
@@ -439,6 +439,7 @@ class ScikitModel(Model):
         logger.info(f"Plotted univariate features with respect to label, and saved")
 
         classifiers = self.create_classifiers_and_param_grids(Ys_train, self.config.balance_classes)
+        best_grid_estimators = {}
         for classifier, param_grid in classifiers:
             class_name = classifier.__class__.__name__
             classifier_output_dir = self.model_train_dir / convert_pascal_to_snake_case(class_name)
@@ -492,6 +493,7 @@ class ScikitModel(Model):
                     f"F1 on held-out: {grid_results['mean_test_f1'][grid.best_index_]}")
 
                 best_classifiers_metrics[class_name] = best_estimator_results
+                best_grid_estimators[class_name] = grid.best_estimator_
 
                 if class_name in ['DecisionTreeClassifier', 'RandomForestClassifier', 'GradientBoostingClassifier',
                                   'XGBClassifier']:
@@ -522,7 +524,79 @@ class ScikitModel(Model):
             except Exception as e:
                 logger.exception(f"Failed to train classifier {class_name} with error: {e}")
 
+        tree_model_names = ['RandomForestClassifier', 'DecisionTreeClassifier', 'XGBClassifier']
+        if all(name in best_grid_estimators for name in tree_model_names):
+            try:
+                self._train_voting_classifier(
+                    logger, Xs_train_features, Ys_train, Xs_test_features, Ys_test,
+                    cv_splitter, best_classifiers_metrics, all_pred_probs, best_grid_estimators, tree_model_names
+                )
+            except Exception as e:
+                logger.exception(f"Failed to train VotingClassifier with error: {e}")
+
         return all_pred_probs
+
+    def _train_voting_classifier(self, logger, Xs_train, Ys_train, Xs_test, Ys_test,
+                                  cv_splitter, best_classifiers_metrics, all_pred_probs,
+                                  best_grid_estimators, tree_model_names):
+        class_name = 'VotingClassifier'
+        classifier_output_dir = self.model_train_dir / convert_pascal_to_snake_case(class_name)
+        classifier_output_dir.mkdir(exist_ok=True, parents=True)
+
+        logger.info(f"Training {class_name} (soft voting over {tree_model_names}) using cross-validation.")
+
+        named_estimators = [(name, best_grid_estimators[name]) for name in tree_model_names]
+        voting_clf = VotingClassifier(estimators=named_estimators, voting='soft', n_jobs=self.config.cpus)
+
+        cv_scores = {f'mean_train_{metric}': [] for metric in METRIC_NAME_TO_SKLEARN_SCORER}
+        cv_scores.update({f'mean_test_{metric}': [] for metric in METRIC_NAME_TO_SKLEARN_SCORER})
+
+        for train_idx, val_idx in cv_splitter.split(Xs_train, Ys_train):
+            X_fold_train, X_fold_val = Xs_train.iloc[train_idx], Xs_train.iloc[val_idx]
+            y_fold_train, y_fold_val = Ys_train.iloc[train_idx], Ys_train.iloc[val_idx]
+
+            if self.config.balance_classes:
+                resampler = RandomUnderSampler(random_state=self.config.random_state, sampling_strategy=self.config.max_classes_ratio)
+                X_fold_train, y_fold_train = resampler.fit_resample(X_fold_train, y_fold_train)
+
+            voting_clf.fit(X_fold_train, y_fold_train)
+
+            for split_label, X_eval, y_eval in [('train', X_fold_train, y_fold_train), ('test', X_fold_val, y_fold_val)]:
+                y_probs = voting_clf.predict_proba(X_eval)[:, 1]
+                y_pred = voting_clf.predict(X_eval)
+                cv_scores[f'mean_{split_label}_mcc'].append(matthews_corrcoef(y_eval, y_pred))
+                cv_scores[f'mean_{split_label}_auprc'].append(average_precision_score(y_eval, y_probs))
+                cv_scores[f'mean_{split_label}_f1'].append(f1_score(y_eval, y_pred))
+
+        cv_means = {k: np.mean(v) for k, v in cv_scores.items()}
+        logger.info(
+            f"VotingClassifier CV - MCC on train: {cv_means['mean_train_mcc']:.4f}, "
+            f"AUPRC on train: {cv_means['mean_train_auprc']:.4f}, "
+            f"F1 on train: {cv_means['mean_train_f1']:.4f}, "
+            f"MCC on held-out: {cv_means['mean_test_mcc']:.4f}, "
+            f"AUPRC on held-out: {cv_means['mean_test_auprc']:.4f}, "
+            f"F1 on held-out: {cv_means['mean_test_f1']:.4f}")
+
+        # Final fit on full training data
+        X_final_train, y_final_train = Xs_train, Ys_train
+        if self.config.balance_classes:
+            resampler = RandomUnderSampler(random_state=self.config.random_state, sampling_strategy=self.config.max_classes_ratio)
+            X_final_train, y_final_train = resampler.fit_resample(Xs_train, Ys_train)
+        voting_clf.fit(X_final_train, y_final_train)
+
+        joblib.dump(voting_clf, classifier_output_dir / f'best_{class_name}.pkl')
+
+        cv_results_df = pd.DataFrame([cv_means])
+        cv_results_df.to_csv(classifier_output_dir / f'{class_name}_cv_results.csv', index=False)
+        best_classifiers_metrics[class_name] = pd.Series(cv_means)
+
+        y_pred_probs = voting_clf.predict_proba(Xs_test)[:, 1]
+        y_pred = voting_clf.predict(Xs_test)
+        self.test_on_test_data(logger, Ys_test, y_pred_probs, y_pred, classifier_output_dir)
+
+        pd.Series(y_pred_probs, name='pred_prob').to_csv(
+            classifier_output_dir / f'{class_name}_test_pred_probs.csv', index=False)
+        all_pred_probs[class_name] = y_pred_probs
 
     def create_classifiers_and_param_grids(self, Ys_train, adjust_to_pipeline=False):
         knn_grid = {
