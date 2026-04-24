@@ -1,3 +1,4 @@
+import math
 import itertools
 from collections import Counter
 import joblib
@@ -186,7 +187,7 @@ class Model:
         indices = np.argsort(features_importance)[::-1]
         plt.figure(figsize=(10, 6))
         plt.bar(list(range(len(feature_names))), features_importance[indices], align="center")
-        plt.xticks(list(range(len(feature_names))), [feature_names[i] for i in indices], fontsize=18)
+        plt.xticks(list(range(len(feature_names))), [feature_names[i] for i in indices], fontsize=14)
         plt.xlabel('')
         plt.ylabel('Feature Importance', fontsize=18)
         plt.tight_layout()
@@ -278,9 +279,12 @@ class Model:
     def plot_pdp_ice(classifier_name, estimator, X, output_dir, split_label):
         features = list(X.columns)
         n_features = len(features)
-        fig, axes = plt.subplots(1, n_features, figsize=(4 * n_features, 5), constrained_layout=True)
-        if n_features == 1:
-            axes = [axes]
+        n_cols = math.ceil(n_features / 2)
+        n_rows = 2 if n_features > 1 else 1
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(4 * n_cols, 5 * n_rows), constrained_layout=True)
+        axes = np.array(axes).flatten()
+        for ax in axes[n_features:]:
+            ax.set_visible(False)
         PartialDependenceDisplay.from_estimator(
             estimator,
             X,
@@ -292,7 +296,7 @@ class Model:
             pd_line_kw={'color': 'red', 'linewidth': 2},
             random_state=0,
         )
-        fig.suptitle(f'PDP + ICE — {classifier_name} ({split_label})', fontsize=18)
+
         plt.savefig(output_dir / f'{classifier_name}_pdp_ice_{split_label}.png', dpi=600, bbox_inches='tight')
         plt.close()
 
@@ -307,7 +311,6 @@ class Model:
         fig, ax = plt.subplots(figsize=(max(4, n * 1.5), max(3, n * 1.2)))
         sns.heatmap(corr_matrix, annot=True, fmt='.2f', vmin=-1, vmax=1, center=0,
                     cmap='coolwarm', square=True, linewidths=0.5, ax=ax)
-        ax.set_title('Prediction Probability Correlations Between Models', fontsize=17)
         plt.tight_layout()
         plt.savefig(output_dir / 'models_pred_probs_correlations.png', dpi=600, bbox_inches='tight')
         plt.close()
