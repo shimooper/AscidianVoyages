@@ -30,13 +30,13 @@ def plot_timeline(routes_df, lived_columns, condition_columns, condition_full_na
         ax.scatter(alive_days, alive_conditions, color=SURVIVAL_COLORS['Alive'], alpha=0.5, label='Alive')
         ax.scatter(dead_days, dead_conditions, color=SURVIVAL_COLORS['Dead'], alpha=0.5, label='Dead')
 
-    ax.set_xlabel('Day', fontsize=18)
-    ax.set_ylabel(y_axis_label, fontsize=18)
-    ax.tick_params(axis='both', labelsize=16)
+    ax.set_xlabel('Day', fontsize=22)
+    ax.set_ylabel(y_axis_label, fontsize=22)
+    ax.tick_params(axis='both', labelsize=20)
 
     handles, labels = ax.get_legend_handles_labels()
     unique = dict(zip(labels, handles))
-    ax.legend(unique.values(), unique.keys(), loc='lower right', fontsize=13)
+    ax.legend(unique.values(), unique.keys(), loc='lower right', fontsize=17)
     ax.grid(True)
 
     fig.savefig(output_dir / f'routes_timeline_{condition_full_name.lower()}.png', dpi=600)

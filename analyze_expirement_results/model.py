@@ -135,20 +135,20 @@ class Model:
 
         sns.stripplot(data=df_temp, x='feature', y='value', hue='death_label', palette=SURVIVAL_COLORS, jitter=True, alpha=0.7, ax=axes[0],
                       legend=False)
-        axes[0].set_ylabel("Temperature (°C)", fontsize=14)
+        axes[0].set_ylabel("Temperature (°C)", fontsize=18)
         axes[0].set_xlabel(None)
-        axes[0].tick_params(axis='x', labelsize=14)
+        axes[0].tick_params(axis='x', labelsize=18)
 
         sns.stripplot(data=df_salinity, x='feature', y='value', hue='death_label', palette=SURVIVAL_COLORS, jitter=True, alpha=0.7, ax=axes[1],
                       legend=False)
-        axes[1].set_ylabel("Salinity (ppt)", fontsize=14)
+        axes[1].set_ylabel("Salinity (ppt)", fontsize=18)
         axes[1].set_xlabel(None)
-        axes[1].tick_params(axis='x', labelsize=14)
+        axes[1].tick_params(axis='x', labelsize=18)
 
         sns.stripplot(data=df_time, x='feature', y='value', hue='death_label', palette=SURVIVAL_COLORS, jitter=True, alpha=0.7, ax=axes[2])
-        axes[2].set_ylabel("Days", fontsize=14)
+        axes[2].set_ylabel("Days", fontsize=18)
         axes[2].set_xlabel(None)
-        axes[2].tick_params(axis='x', labelsize=14)
+        axes[2].tick_params(axis='x', labelsize=18)
         axes[2].legend(title=None)
 
         plt.savefig(self.model_data_dir / "scatter_plot.png", dpi=600, bbox_inches='tight')
@@ -159,20 +159,20 @@ class Model:
 
         sns.boxplot(data=df_temp, x='feature', y='value', hue='death_label', palette=SURVIVAL_COLORS, ax=axes[0],
                     legend=False)
-        axes[0].set_ylabel("Temperature (°C)", fontsize=14)
+        axes[0].set_ylabel("Temperature (°C)", fontsize=18)
         axes[0].set_xlabel(None)
-        axes[0].tick_params(axis='x', labelsize=14)
+        axes[0].tick_params(axis='x', labelsize=18)
 
         sns.boxplot(data=df_salinity, x='feature', y='value', hue='death_label', palette=SURVIVAL_COLORS, ax=axes[1],
                     legend=False)
-        axes[1].set_ylabel("Salinity (ppt)", fontsize=14)
+        axes[1].set_ylabel("Salinity (ppt)", fontsize=18)
         axes[1].set_xlabel(None)
-        axes[1].tick_params(axis='x', labelsize=14)
+        axes[1].tick_params(axis='x', labelsize=18)
 
         sns.boxplot(data=df_time, x='feature', y='value', hue='death_label', palette=SURVIVAL_COLORS, ax=axes[2])
-        axes[2].set_ylabel("Days", fontsize=14)
+        axes[2].set_ylabel("Days", fontsize=18)
         axes[2].set_xlabel(None)
-        axes[2].tick_params(axis='x', labelsize=14)
+        axes[2].tick_params(axis='x', labelsize=18)
         axes[2].legend(title=None)
 
         plt.savefig(self.model_data_dir / "box_plot.png", dpi=600, bbox_inches='tight')
@@ -186,9 +186,9 @@ class Model:
         indices = np.argsort(features_importance)[::-1]
         plt.figure(figsize=(10, 6))
         plt.bar(list(range(len(feature_names))), features_importance[indices], align="center")
-        plt.xticks(list(range(len(feature_names))), [feature_names[i] for i in indices], fontsize=14)
+        plt.xticks(list(range(len(feature_names))), [feature_names[i] for i in indices], fontsize=18)
         plt.xlabel('')
-        plt.ylabel('Feature Importance', fontsize=14)
+        plt.ylabel('Feature Importance', fontsize=18)
         plt.tight_layout()
         plt.savefig(output_dir / f'{classifier_name}_feature_importance.png', dpi=600)
         plt.close()
@@ -216,7 +216,7 @@ class Model:
             impurity=False,
             filled=True,  # Color nodes by class
             rounded=True,  # Rounded corners
-            fontsize=16,  # Font size,
+            fontsize=20,  # Font size,
         )
 
         plt.savefig(output_dir / 'DecisionTreeClassifier_plot.png', dpi=600)
@@ -292,7 +292,7 @@ class Model:
             pd_line_kw={'color': 'red', 'linewidth': 2},
             random_state=0,
         )
-        fig.suptitle(f'PDP + ICE — {classifier_name} ({split_label})', fontsize=14)
+        fig.suptitle(f'PDP + ICE — {classifier_name} ({split_label})', fontsize=18)
         plt.savefig(output_dir / f'{classifier_name}_pdp_ice_{split_label}.png', dpi=600, bbox_inches='tight')
         plt.close()
 
@@ -307,7 +307,7 @@ class Model:
         fig, ax = plt.subplots(figsize=(max(4, n * 1.5), max(3, n * 1.2)))
         sns.heatmap(corr_matrix, annot=True, fmt='.2f', vmin=-1, vmax=1, center=0,
                     cmap='coolwarm', square=True, linewidths=0.5, ax=ax)
-        ax.set_title('Prediction Probability Correlations Between Models', fontsize=13)
+        ax.set_title('Prediction Probability Correlations Between Models', fontsize=17)
         plt.tight_layout()
         plt.savefig(output_dir / 'models_pred_probs_correlations.png', dpi=600, bbox_inches='tight')
         plt.close()
