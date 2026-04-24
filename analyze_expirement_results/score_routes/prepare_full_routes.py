@@ -1,15 +1,9 @@
 from pathlib import Path
 import pandas as pd
 import re
+import argparse
 
-PROJECT_ROOT_DIR = Path(__file__).resolve().parent.parent
-
-ACTUAL_EXPERIMENT_DATA = PROJECT_ROOT_DIR / 'outputs_noa_figures' / 'configuration_0' / 'data'
-ACTUAL_EXPERIMENT_TRAIN_DATA = ACTUAL_EXPERIMENT_DATA / 'train.csv'
-ACTUAL_EXPERIMENT_TEST_DATA = ACTUAL_EXPERIMENT_DATA / 'test.csv'
-
-PLANNED_EXPERIMENT_DATA = Path('planned_routes') / 'all_sampled_routes.csv'
-OUTPUT_DIR = Path('config_stratify/full_routes')
+PLANNED_EXPERIMENT_DATA = Path(__file__).parent / 'planned_routes' / 'all_sampled_routes.csv'
 
 
 def find_first_nan_day(row: pd.Series):
@@ -58,5 +52,8 @@ def prepare_data(actual_experiment_data, planned_experiment_data, output_dir):
 
 
 if __name__ == "__main__":
-    prepare_data(ACTUAL_EXPERIMENT_TRAIN_DATA, PLANNED_EXPERIMENT_DATA, OUTPUT_DIR)
-    prepare_data(ACTUAL_EXPERIMENT_TEST_DATA, PLANNED_EXPERIMENT_DATA, OUTPUT_DIR)
+    parser = argparse.ArgumentParser(description='Prepare full routes by filling in missing values based on planned routes.')
+    parser.add_argument('--base_dir', type=Path, required=True)
+    args = parser.parse_args()
+    prepare_data(args.base_dir / 'data' / 'train.csv', PLANNED_EXPERIMENT_DATA, args.base_dir / 'score_routes' / 'full_routes')
+    prepare_data(args.base_dir / 'data' / 'test.csv', PLANNED_EXPERIMENT_DATA, args.base_dir / 'score_routes' / 'full_routes')

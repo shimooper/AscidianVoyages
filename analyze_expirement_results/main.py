@@ -81,7 +81,7 @@ if __name__ == "__main__":
     parser.add_argument('--do_feature_selection', type=str_to_bool, default=False)
     parser.add_argument('--run_configurations_in_parallel', type=str_to_bool, default=False)
     parser.add_argument('--run_lstm_configurations_in_parallel', type=str_to_bool, default=False)
-    parser.add_argument('--run_lstm', type=str_to_bool, default=True)
+    parser.add_argument('--run_lstm', type=str_to_bool, default=False)
 
     args = parser.parse_args()
     main(ROOT_DIR / args.outputs_dir_name, args.cpus, args.do_feature_selection, args.run_configurations_in_parallel,

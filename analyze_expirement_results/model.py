@@ -404,7 +404,8 @@ class ScikitModel(Model):
         with open(self.model_train_dir / 'model_metadata.json', 'w') as f:
             json.dump(metadata, f)
 
-    def convert_X_to_features(self, X_df):
+    @staticmethod
+    def convert_X_to_features(X_df):
         temperature_cols = [col for col in X_df.columns if col.startswith("Temperature ")]
         salinity_cols = [col for col in X_df.columns if col.startswith("Salinity ")]
         time_cols = [col for col in X_df.columns if col.startswith("Time ")]

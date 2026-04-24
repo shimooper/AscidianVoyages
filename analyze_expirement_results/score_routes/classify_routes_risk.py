@@ -2,6 +2,7 @@ from pathlib import Path
 import pandas as pd
 import joblib
 import argparse
+import sys
 from sklearn.linear_model import LogisticRegression
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.metrics import matthews_corrcoef, average_precision_score, f1_score
@@ -9,10 +10,8 @@ from sklearn.model_selection import StratifiedKFold
 import seaborn as sns
 import matplotlib.pyplot as plt
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from analyze_expirement_results.configuration import Config
-
-PROJECT_ROOT_DIR = Path(__file__).resolve().parent.parent
-CONFIG_PATH = PROJECT_ROOT_DIR / 'outputs_noa_figures' / 'configuration_0' / 'config.csv'
 
 FINAL = True
 
@@ -99,11 +98,11 @@ def main(routes_train_path, routes_test_path, config_path, output_dir):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Prepare data for scoring routes')
-    parser.add_argument('--routes_train_path', type=Path,
-                        default=Path('config_stratify/full_routes_aggregated_scores') / 'routes_train_agg.csv')
-    parser.add_argument('--routes_test_path', type=Path,
-                        default=Path('config_stratify/full_routes_aggregated_scores') / 'routes_test_agg.csv')
-    parser.add_argument('--output_dir', type=Path, default=Path('config_stratify/full_routes_risk_score'))
+    parser.add_argument('--base_dir', type=Path, required=True)
     args = parser.parse_args()
 
-    main(args.routes_train_path, args.routes_test_path, CONFIG_PATH, args.output_dir)
+    routes_train_path = args.base_dir / 'score_routes' / 'full_routes_aggregated_scores' / 'routes_train_agg.csv'
+    routes_test_path = args.base_dir / 'score_routes' / 'full_routes_aggregated_scores' / 'routes_test_agg.csv'
+    config_path = args.base_dir / 'config.csv'
+    output_dir = args.base_dir / 'score_routes' / 'full_routes_risk_score'
+    main(routes_train_path, routes_test_path, config_path, output_dir)
