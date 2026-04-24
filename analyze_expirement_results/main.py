@@ -77,7 +77,7 @@ def main(outputs_dir, cpus, do_feature_selection, run_configurations_in_parallel
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run the analysis of the experiment results')
     parser.add_argument('--outputs_dir_name', type=str, default='outputs_test_local', help='outputs dir name')
-    parser.add_argument('--cpus', type=int, default=1, help='Number of CPUs to use')
+    parser.add_argument('--cpus', type=int, default=-1, help='Number of CPUs to use')
     parser.add_argument('--do_feature_selection', type=str_to_bool, default=False)
     parser.add_argument('--run_configurations_in_parallel', type=str_to_bool, default=False)
     parser.add_argument('--run_lstm_configurations_in_parallel', type=str_to_bool, default=False)

@@ -1,8 +1,4 @@
 ,13
-mean_fit_time,0.010399389266967773
-std_fit_time,0.0008003473761268544
-mean_score_time,0.023000383377075197
-std_score_time,0.000631354268925454
 param_class_weight,
 param_max_depth,3
 param_min_samples_leaf,1

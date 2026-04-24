@@ -1,8 +1,4 @@
 ,32
-mean_fit_time,0.16078295707702636
-std_fit_time,0.01065106114442463
-mean_score_time,0.04510478973388672
-std_score_time,0.007368791701425727
 param_booster,dart
 param_learning_rate,0.1
 param_max_depth,3

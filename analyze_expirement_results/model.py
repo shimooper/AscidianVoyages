@@ -291,7 +291,7 @@ class Model:
             features=features,
             kind='both',
             subsample=min(100, len(X)),
-            ax=axes,
+            ax=axes[:n_features],
             ice_lines_kw={'alpha': 0.1, 'color': 'steelblue'},
             pd_line_kw={'color': 'red', 'linewidth': 2},
             random_state=0,
@@ -474,6 +474,8 @@ class ScikitModel(Model):
             try:
                 grid.fit(Xs_train_features, Ys_train)
                 grid_results = pd.DataFrame.from_dict(grid.cv_results_)
+                time_cols = [c for c in grid_results.columns if 'time' in c.lower()]
+                grid_results = grid_results.drop(columns=time_cols)
                 grid_results.to_csv(classifier_output_dir / f'{class_name}_grid_results.csv')
 
                 best_estimator = grid.best_estimator_ if not self.config.balance_classes else grid.best_estimator_.named_steps['clf']
@@ -508,6 +510,7 @@ class ScikitModel(Model):
 
                 if class_name == 'DecisionTreeClassifier':
                     self.plot_decision_tree(best_estimator, list(Xs_train_features.columns), classifier_output_dir)
+                    logger.info(f'Plotted decision tree structure and saved it to {classifier_output_dir}')
                     if len(Xs_train_features.columns) >= 2 and not DEBUG_MODE:
                         best_params = grid.best_params_
                         if self.config.balance_classes:
@@ -515,6 +518,7 @@ class ScikitModel(Model):
                         self.plot_decision_functions_of_features_pairs(Xs_train_features, Ys_train, best_params,
                                                                        best_estimator.feature_importances_,
                                                                        classifier_output_dir)
+                        logger.info(f'Plotted decision functions on pairs of features and saved it to {classifier_output_dir}')
 
                 Ys_test_predictions = best_estimator.predict_proba(Xs_test_features)
                 y_pred_probs = Ys_test_predictions[:, 1]

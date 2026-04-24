@@ -1,8 +1,4 @@
 ,37
-mean_fit_time,0.07879972457885742
-std_fit_time,0.013090149906924597
-mean_score_time,0.04219951629638672
-std_score_time,0.006242420945766478
 param_bootstrap,True
 param_class_weight,
 param_max_depth,3

@@ -36,7 +36,7 @@ def variable_equals_value(variable, value):
 
 def get_logger(log_file_path, logger_name, verbose: bool):
     logger = logging.getLogger(logger_name)
-    file_handler = logging.FileHandler(log_file_path, mode='a')
+    file_handler = logging.FileHandler(log_file_path)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
