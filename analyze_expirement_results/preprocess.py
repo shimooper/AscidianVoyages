@@ -54,7 +54,7 @@ def preprocess_data_by_config(logger, config: Config, routes_df):
     processed_routes_path = config.data_dir_path / 'full.csv'
     routes_df.to_csv(processed_routes_path, index=False)
 
-    routes_no_control = routes_df[routes_df['Name'] != 'CONTROL']
+    routes_no_control = routes_df[routes_df['Name'] != 'CONTROL'].copy()
     routes_no_control['is_dead'] = routes_no_control['dying_day'].notna()
     representative_routes_df = routes_no_control.groupby(['Name', 'Season'])['is_dead'].agg(
         lambda x: x.mode().iloc[0]).reset_index()

@@ -548,10 +548,14 @@ class ScikitModel(Model):
         named_estimators = [(name, best_grid_estimators[name]) for name in tree_model_names]
         voting_clf = VotingClassifier(estimators=named_estimators, voting='soft', n_jobs=self.config.cpus)
 
+        fold_scores = {f'split{i}_{split_label}_{metric}': None
+                       for i in range(cv_splitter.n_splits)
+                       for split_label in ('train', 'test')
+                       for metric in METRIC_NAME_TO_SKLEARN_SCORER}
         cv_scores = {f'mean_train_{metric}': [] for metric in METRIC_NAME_TO_SKLEARN_SCORER}
         cv_scores.update({f'mean_test_{metric}': [] for metric in METRIC_NAME_TO_SKLEARN_SCORER})
 
-        for train_idx, val_idx in cv_splitter.split(Xs_train, Ys_train):
+        for fold_idx, (train_idx, val_idx) in enumerate(cv_splitter.split(Xs_train, Ys_train)):
             X_fold_train, X_fold_val = Xs_train.iloc[train_idx], Xs_train.iloc[val_idx]
             y_fold_train, y_fold_val = Ys_train.iloc[train_idx], Ys_train.iloc[val_idx]
 
@@ -564,11 +568,18 @@ class ScikitModel(Model):
             for split_label, X_eval, y_eval in [('train', X_fold_train, y_fold_train), ('test', X_fold_val, y_fold_val)]:
                 y_probs = voting_clf.predict_proba(X_eval)[:, 1]
                 y_pred = voting_clf.predict(X_eval)
-                cv_scores[f'mean_{split_label}_mcc'].append(matthews_corrcoef(y_eval, y_pred))
-                cv_scores[f'mean_{split_label}_auprc'].append(average_precision_score(y_eval, y_probs))
-                cv_scores[f'mean_{split_label}_f1'].append(f1_score(y_eval, y_pred))
+                mcc = matthews_corrcoef(y_eval, y_pred)
+                auprc = average_precision_score(y_eval, y_probs)
+                f1 = f1_score(y_eval, y_pred)
+                cv_scores[f'mean_{split_label}_mcc'].append(mcc)
+                cv_scores[f'mean_{split_label}_auprc'].append(auprc)
+                cv_scores[f'mean_{split_label}_f1'].append(f1)
+                fold_scores[f'split{fold_idx}_{split_label}_mcc'] = mcc
+                fold_scores[f'split{fold_idx}_{split_label}_auprc'] = auprc
+                fold_scores[f'split{fold_idx}_{split_label}_f1'] = f1
 
         cv_means = {k: np.mean(v) for k, v in cv_scores.items()}
+        cv_means.update(fold_scores)
         logger.info(
             f"VotingClassifier CV - MCC on train: {cv_means['mean_train_mcc']:.4f}, "
             f"AUPRC on train: {cv_means['mean_train_auprc']:.4f}, "
