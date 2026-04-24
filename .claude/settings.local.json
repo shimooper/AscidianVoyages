@@ -3,7 +3,8 @@
     "allow": [
       "Bash(claude init:*)",
       "Bash(grep -h \"^import \\\\|^from \" /c/repos/GoogleShips/analyze_expirement_results/*.py)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(git add *)"
     ]
   }
 }

@@ -1,0 +1,4 @@
+model_compared,p_val_ttest,p_val_wilcox,mean_diff,p_val_ttest_fdr_corrected,significant_ttest_fdr,p_val_wilcox_fdr_corrected,significant_wilcox_fdr
+RandomForestClassifier,0.373900966300059,1.0,0.011337217889480389,,False,1.0,False
+XGBClassifier,0.2078918890591862,1.0,0.033979740576001616,,False,1.0,False
+VotingClassifier,,1.0,0.0,,False,1.0,False

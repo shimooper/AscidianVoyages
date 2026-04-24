@@ -1,0 +1,29 @@
+digraph Tree {
+node [shape=box, style="filled, rounded", color="black", fontname="helvetica"] ;
+edge [fontname="helvetica"] ;
+0 [label=<Δsal &le; 16.0<br/>samples = 2095<br/>value = [2043, 52]<br/>class = Alive>, fillcolor="#e6843e"] ;
+1 [label=<min_temp &le; 32.5<br/>samples = 2069<br/>value = [2040, 29]<br/>class = Alive>, fillcolor="#e5833c"] ;
+0 -> 1 [labeldistance=2.5, labelangle=45, headlabel="True"] ;
+2 [label=<min_sal &le; 34.5<br/>samples = 2038<br/>value = [2013, 25]<br/>class = Alive>, fillcolor="#e5833b"] ;
+1 -> 2 ;
+3 [label="(...)", fillcolor="#C0C0C0"] ;
+2 -> 3 ;
+4 [label="(...)", fillcolor="#C0C0C0"] ;
+2 -> 4 ;
+5 [label=<days_passed &le; 23.5<br/>samples = 31<br/>value = [27, 4]<br/>class = Alive>, fillcolor="#e99456"] ;
+1 -> 5 ;
+6 [label="(...)", fillcolor="#C0C0C0"] ;
+5 -> 6 ;
+7 [label="(...)", fillcolor="#C0C0C0"] ;
+5 -> 7 ;
+8 [label=<Δtemp &le; 7.0<br/>samples = 26<br/>value = [3, 23]<br/>class = Dead>, fillcolor="#53aae8"] ;
+0 -> 8 [labeldistance=2.5, labelangle=-45, headlabel="False"] ;
+9 [label=<samples = 21<br/>value = [0, 21]<br/>class = Dead>, fillcolor="#399de5"] ;
+8 -> 9 ;
+10 [label=<max_sal &le; 37.5<br/>samples = 5<br/>value = [3, 2]<br/>class = Alive>, fillcolor="#f6d5bd"] ;
+8 -> 10 ;
+11 [label="(...)", fillcolor="#C0C0C0"] ;
+10 -> 11 ;
+12 [label="(...)", fillcolor="#C0C0C0"] ;
+10 -> 12 ;
+}
