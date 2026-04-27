@@ -1,3 +1,6 @@
+import matplotlib
+matplotlib.use('Agg')
+
 from pathlib import Path
 import pandas as pd
 import joblib
@@ -58,6 +61,7 @@ def run_one_config(config, routes_train_path, routes_test_path, aggregation_type
     plt.legend(title='Dataset', bbox_to_anchor=(1.05, 0.5), loc='best', borderaxespad=0.,  title_fontsize=18, fontsize=16)
     plt.tick_params(axis='both', labelsize=16)
     plt.savefig(output_dir / 'routes_risk_results.png', dpi=600, bbox_inches='tight')
+    plt.savefig(output_dir / 'routes_risk_results.svg', bbox_inches='tight')
     plt.close()
 
     # Write to file routes scores

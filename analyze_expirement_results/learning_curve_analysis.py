@@ -2,6 +2,9 @@
 Learning curve analysis: trains RandomForest with the best-found hyperparameters on
 increasing subsets of the training data, evaluating on the full test set each time.
 """
+import matplotlib
+matplotlib.use('Agg')
+
 import sys
 import argparse
 from pathlib import Path
@@ -107,6 +110,7 @@ def main(base_dir: Path, output_dir: Path):
     ax.legend(fontsize=14)
     plt.tight_layout()
     plt.savefig(output_dir / 'learning_curve.png', dpi=600, bbox_inches='tight')
+    plt.savefig(output_dir / 'learning_curve.svg', bbox_inches='tight')
     plt.close()
     print(f"Saved results to {output_dir}")
 

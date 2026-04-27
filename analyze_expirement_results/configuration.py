@@ -10,12 +10,7 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from analyze_expirement_results.utils import str_to_bool
 
-if platform.system() == "Linux":
-    DEBUG_MODE = False
-elif platform.system() == "Windows":
-    DEBUG_MODE = False
-else:
-    raise Exception(f"Unsupported platform: {platform.system()}")
+TEST_MODE = False
 
 ROOT_DIR = Path(__file__).resolve().parent
 DATA_DIR = ROOT_DIR / 'data'
@@ -24,22 +19,22 @@ PROCESSED_DATA_DIR = DATA_DIR / 'preprocess'
 PROCESSED_DATA_PATH = PROCESSED_DATA_DIR / 'Final_Data_Voyages_Processed_30.csv'
 
 INCLUDE_CONTROL_ROUTES = [True]
-INCLUDE_SUSPECTED_ROUTES_PARTS = [False] if not DEBUG_MODE else [True, False]
-STRATIFY_TRAIN_TEST_SPLIT = [True] if not DEBUG_MODE else [True]
+INCLUDE_SUSPECTED_ROUTES_PARTS = [False] if not TEST_MODE else [True, False]
+STRATIFY_TRAIN_TEST_SPLIT = [True] if not TEST_MODE else [True]
 # RANDOM_STATE = [0, 42, 123, 99, 2025] if not DEBUG_MODE else [0]
-RANDOM_STATE = [0] if not DEBUG_MODE else [0]
-NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH = [0] if not DEBUG_MODE else [0]
+RANDOM_STATE = [0] if not TEST_MODE else [0]
+NUMBER_OF_FUTURE_DAYS_TO_CONSIDER_DEATH = [0] if not TEST_MODE else [0]
 # METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS = ['f1', 'mcc', 'auprc'] if not DEBUG_MODE else ['f1']
-METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS = ['mcc'] if not DEBUG_MODE else ['f1', 'mcc']
+METRIC_TO_CHOOSE_BEST_MODEL_HYPER_PARAMS = ['mcc'] if not TEST_MODE else ['f1', 'mcc']
 TEST_SET_SIZE = 0.25
-INTERVAL_LENGTH = [1, 2, 3, 4] if not DEBUG_MODE else [3, 4]
-BALANCE_CLASSES_IN_TRAINING = [False] if not DEBUG_MODE else [False]
-NN_MAX_EPOCHS = 15 if not DEBUG_MODE else 1
+INTERVAL_LENGTH = [1, 2, 3, 4] if not TEST_MODE else [3, 4]
+BALANCE_CLASSES_IN_TRAINING = [False] if not TEST_MODE else [False]
+NN_MAX_EPOCHS = 15 if not TEST_MODE else 1
 MAX_CLASS_RATIO = 0.25  # Relevant only if BALANCE_CLASSES_IN_TRAINING is True
 
 METRIC_NAME_TO_SKLEARN_SCORER = {'mcc': make_scorer(matthews_corrcoef), 'f1': 'f1', 'auprc': 'average_precision'}
 
-DEFAULT_OPTUNA_NUMBER_OF_TRIALS = 1000 if not DEBUG_MODE else 10
+DEFAULT_OPTUNA_NUMBER_OF_TRIALS = 1000 if not TEST_MODE else 10
 
 
 @dataclass

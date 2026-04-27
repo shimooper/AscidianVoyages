@@ -36,7 +36,7 @@ def variable_equals_value(variable, value):
 
 def get_logger(log_file_path, logger_name, verbose: bool):
     logger = logging.getLogger(logger_name)
-    file_handler = logging.FileHandler(log_file_path)
+    file_handler = logging.FileHandler(log_file_path, mode='w')
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
@@ -116,6 +116,7 @@ def plot_models_comparison(results_df, outputs_dir: Path, metric):
     plt.tick_params(axis='both', labelsize=16)
     plt.tight_layout()
     plt.savefig(outputs_dir / 'models_comparison.png', dpi=600)
+    plt.savefig(outputs_dir / 'models_comparison.svg')
     plt.close()
 
     max_indices = results_filtered_df.idxmax()

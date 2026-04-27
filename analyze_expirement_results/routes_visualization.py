@@ -40,6 +40,7 @@ def plot_timeline(routes_df, lived_columns, condition_columns, condition_full_na
     ax.grid(True)
 
     fig.savefig(output_dir / f'routes_timeline_{condition_full_name.lower()}.png', dpi=600)
+    fig.savefig(output_dir / f'routes_timeline_{condition_full_name.lower()}.svg')
     plt.close()
 
 

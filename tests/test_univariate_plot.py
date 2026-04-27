@@ -37,4 +37,5 @@ axes[1].legend(title=None)
 
 fig.suptitle("Feature distributions colored by label", fontsize=16)
 plt.savefig("scatter_plot.png", dpi=600, bbox_inches='tight')
+plt.savefig("scatter_plot.svg", bbox_inches='tight')
 plt.close()

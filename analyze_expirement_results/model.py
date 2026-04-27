@@ -39,7 +39,7 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 from analyze_expirement_results.utils import convert_pascal_to_snake_case, get_column_groups_sorted, convert_columns_to_int, \
     get_lived_columns_to_consider, convert_data_to_tensor_for_rnn, \
     plot_models_comparison, SURVIVAL_COLORS
-from analyze_expirement_results.configuration import METRIC_NAME_TO_SKLEARN_SCORER, DEBUG_MODE, Config, ROOT_DIR
+from analyze_expirement_results.configuration import METRIC_NAME_TO_SKLEARN_SCORER, TEST_MODE, Config, ROOT_DIR
 from analyze_expirement_results.model_lstm import LSTMModel, train_lstm_with_hyperparameters_train_val
 from analyze_expirement_results.train_lstm_cv import train_lstm_with_hyperparameters_cv
 from analyze_expirement_results.q_submitter_power import submit_mini_batch, wait_for_results
@@ -153,6 +153,7 @@ class Model:
         axes[2].legend(title=None)
 
         plt.savefig(self.model_data_dir / "scatter_plot.png", dpi=600, bbox_inches='tight')
+        plt.savefig(self.model_data_dir / "scatter_plot.svg", bbox_inches='tight')
         plt.close()
 
         # Box plot
@@ -177,6 +178,7 @@ class Model:
         axes[2].legend(title=None)
 
         plt.savefig(self.model_data_dir / "box_plot.png", dpi=600, bbox_inches='tight')
+        plt.savefig(self.model_data_dir / "box_plot.svg", bbox_inches='tight')
         plt.close()
 
     def run_analysis(self, logger):
@@ -192,6 +194,7 @@ class Model:
         plt.ylabel('Feature Importance', fontsize=18)
         plt.tight_layout()
         plt.savefig(output_dir / f'{classifier_name}_feature_importance.png', dpi=600)
+        plt.savefig(output_dir / f'{classifier_name}_feature_importance.svg')
         plt.close()
 
     @staticmethod
@@ -221,6 +224,7 @@ class Model:
         )
 
         plt.savefig(output_dir / 'DecisionTreeClassifier_plot.png', dpi=600)
+        plt.savefig(output_dir / 'DecisionTreeClassifier_plot.svg')
         plt.close()
 
     @staticmethod
@@ -273,6 +277,7 @@ class Model:
         plt.legend(loc="lower right", borderpad=0, handletextpad=0)
         _ = plt.axis("tight")
         plt.savefig(output_dir / 'decision_functions_on_features_pairs_plot.png', dpi=600)
+        plt.savefig(output_dir / 'decision_functions_on_features_pairs_plot.svg')
         plt.close()
 
     @staticmethod
@@ -298,6 +303,7 @@ class Model:
         )
 
         plt.savefig(output_dir / f'{classifier_name}_pdp_ice_{split_label}.png', dpi=600, bbox_inches='tight')
+        plt.savefig(output_dir / f'{classifier_name}_pdp_ice_{split_label}.svg', bbox_inches='tight')
         plt.close()
 
     def plot_predictions_correlations(self, logger, all_pred_probs, output_dir):
@@ -313,6 +319,7 @@ class Model:
                     cmap='coolwarm', square=True, linewidths=0.5, ax=ax)
         plt.tight_layout()
         plt.savefig(output_dir / 'models_pred_probs_correlations.png', dpi=600, bbox_inches='tight')
+        plt.savefig(output_dir / 'models_pred_probs_correlations.svg', bbox_inches='tight')
         plt.close()
 
     def test_on_test_data(self, logger, Ys_test, y_pred_probs, y_pred, output_dir):
@@ -511,7 +518,7 @@ class ScikitModel(Model):
                 if class_name == 'DecisionTreeClassifier':
                     self.plot_decision_tree(best_estimator, list(Xs_train_features.columns), classifier_output_dir)
                     logger.info(f'Plotted decision tree structure and saved it to {classifier_output_dir}')
-                    if len(Xs_train_features.columns) >= 2 and not DEBUG_MODE:
+                    if len(Xs_train_features.columns) >= 2 and not TEST_MODE:
                         best_params = grid.best_params_
                         if self.config.balance_classes:
                             best_params = {k.replace('clf__', ''): v for k, v in best_params.items()}
@@ -654,7 +661,7 @@ class ScikitModel(Model):
             'subsample': [0.6, 1],
         }
 
-        if not DEBUG_MODE:
+        if not TEST_MODE:
             rfc_grid = {
                 'n_estimators': [5, 10, 20],
                 'max_depth': [3, 5],
@@ -675,7 +682,7 @@ class ScikitModel(Model):
                 'bootstrap': [True]
             }
 
-        if not DEBUG_MODE:
+        if not TEST_MODE:
             decision_tree_grid = {
                 'max_depth': [3, 5],
                 'min_samples_split': [2, 10],
@@ -692,7 +699,7 @@ class ScikitModel(Model):
                 'class_weight': [None],
             }
 
-        if not DEBUG_MODE:
+        if not TEST_MODE:
             Ys_trains_classes_counts = Counter(Ys_train)
             xgboost_grid = {
                 'learning_rate': [0.01, 0.1],
@@ -740,7 +747,7 @@ class ScikitModel(Model):
         classifier_output_dir = self.model_train_dir / 'lstm_classifier'
 
         # Hyperparameter grid
-        if not DEBUG_MODE:
+        if not TEST_MODE:
             hyperparameter_grid = {
                 'hidden_size': [8, 16, 32],
                 'num_layers': [1, 2],

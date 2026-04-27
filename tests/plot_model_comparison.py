@@ -28,6 +28,7 @@ def main():
     plt.tick_params(axis='both', labelsize=12)
     plt.tight_layout()
     plt.savefig(outputs_dir / 'models_comparison.png', dpi=600)
+    plt.savefig(outputs_dir / 'models_comparison.svg')
     plt.close()
 
     max_indices = results_filtered_df.idxmax()

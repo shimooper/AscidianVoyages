@@ -1,9 +1,12 @@
+import matplotlib
+matplotlib.use('Agg')
+
 from collections import defaultdict
 import pandas as pd
 import argparse
 from pathlib import Path
 
-from configuration import Config, INTERVAL_LENGTH, DEBUG_MODE, PROCESSED_DATA_PATH
+from configuration import Config, INTERVAL_LENGTH, TEST_MODE, PROCESSED_DATA_PATH
 from preprocess import preprocess_data_by_config
 from routes_visualization import plot_timelines
 from model import ScikitModel
@@ -16,7 +19,7 @@ def run_analysis_of_one_config(logger, config: Config):
     data_df = pd.read_csv(PROCESSED_DATA_PATH)
     preprocess_data_by_config(logger, config, data_df)
 
-    if not DEBUG_MODE:
+    if not TEST_MODE:
         plot_timelines(config)
         logger.info('Timelines visualizations created and saved.')
 
