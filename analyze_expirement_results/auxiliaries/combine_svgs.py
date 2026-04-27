@@ -6,7 +6,9 @@ Usage:
 """
 import argparse
 import math
+import os
 import re
+import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 import svgutils.compose as sc
@@ -42,31 +44,76 @@ def _svg_dimensions_pt(path):
     raise ValueError(f"Cannot determine dimensions of {path}")
 
 
+def _make_ascii_safe_tmp(path):
+    """Write a temp SVG where every non-ASCII character is a decimal XML entity.
+
+    svgutils/lxml on Windows reads files with the system encoding (CP1252) even
+    when the XML declaration says UTF-8.  This corrupts characters like Δ and ≤
+    at read time.  By escaping them to ASCII-safe entities first, lxml receives
+    only ASCII bytes and round-trips them correctly to the combined output.
+
+    The caller must delete the returned path when done.
+    """
+    content = Path(path).read_text(encoding='utf-8')
+    # Remove the XML declaration and DOCTYPE — svgutils generates its own
+    content = re.sub(r'<\?xml\b[^?]*\?>\s*', '', content)
+    content = re.sub(r'<!DOCTYPE\b[^\[>]*(?:\[[^\]]*\])?\s*>\s*', '', content, flags=re.DOTALL)
+    safe = ''.join(f'&#{ord(c)};' if ord(c) > 127 else c for c in content)
+    fd, tmp_path = tempfile.mkstemp(suffix='.svg')
+    with os.fdopen(fd, 'w', encoding='ascii') as f:
+        f.write(safe)
+    return tmp_path
+
+
 def combine_svgs(input_paths, output_path, ncols, label_size, gap=0):
     if len(input_paths) > 26:
         raise ValueError("At most 26 figures are supported (A–Z).")
 
     labels = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    svgs = [sc.SVG(p) for p in input_paths]
+    n = len(input_paths)
+    nrows = math.ceil(n / ncols)
 
-    # Read dimensions directly from the SVG XML to avoid svgutils unit-stripping
-    cell_w, cell_h = _svg_dimensions_pt(input_paths[0])
+    # Read each figure's dimensions individually
+    dims = [_svg_dimensions_pt(p) for p in input_paths]
 
-    nrows = math.ceil(len(svgs) / ncols)
-    panels = []
+    # Max width per column and max height per row for alignment
+    col_widths = [0.0] * ncols
+    row_heights = [0.0] * nrows
+    for i, (w, h) in enumerate(dims):
+        col_widths[i % ncols] = max(col_widths[i % ncols], w)
+        row_heights[i // ncols] = max(row_heights[i // ncols], h)
 
-    for i, (svg, label) in enumerate(zip(svgs, labels)):
-        col = i % ncols
-        row = i // ncols
-        x = col * (cell_w + gap)
-        y = row * (cell_h + gap)
-        panels.append(sc.Panel(
-            svg.move(x, y),
-            sc.Text(label, x + 2, y + label_size * 0.7, size=label_size, weight='bold', font='Arial'),
-        ))
+    col_x = [sum(col_widths[:c]) + c * gap for c in range(ncols)]
+    row_y = [sum(row_heights[:r]) + r * gap for r in range(nrows)]
+    total_w = sum(col_widths) + (ncols - 1) * gap
+    total_h = sum(row_heights) + (nrows - 1) * gap
 
-    fig = sc.Figure(ncols * cell_w + (ncols - 1) * gap, nrows * cell_h + (nrows - 1) * gap, *panels)
-    fig.save(output_path)
+    tmp_paths = []
+    try:
+        tmp_paths = [_make_ascii_safe_tmp(p) for p in input_paths]
+        svgs = [sc.SVG(p) for p in tmp_paths]
+
+        panels = []
+        for i, (svg, label) in enumerate(zip(svgs, labels)):
+            col = i % ncols
+            row = i // ncols
+            w, h = dims[i]
+            x_fig = col_x[col] + (col_widths[col] - w) / 2
+            y = row_y[row]
+            panels.append(sc.Panel(
+                svg.move(x_fig, y),
+                sc.Text(label, col_x[col] + 2, y + label_size * 0.7, size=label_size, weight='bold', font='Arial'),
+            ))
+
+        fig = sc.Figure(total_w, total_h, *panels)
+        fig.save(output_path)
+    finally:
+        for tmp in tmp_paths:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+
     print(f"Saved combined SVG to {output_path}")
 
     png_path = output_path.with_suffix(".png")
