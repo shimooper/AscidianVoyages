@@ -16,3 +16,4 @@ dependencies:
   - imbalanced-learn
   - tensorboard
   - graphviz=13.0.0
+  - svgutils

@@ -115,8 +115,8 @@ def plot_models_comparison(results_df, outputs_dir: Path, metric):
     plt.legend(title='Model', bbox_to_anchor=(1.05, 0.5), loc='center left', borderaxespad=0., title_fontsize=18, fontsize=16)
     plt.tick_params(axis='both', labelsize=16)
     plt.tight_layout()
-    plt.savefig(outputs_dir / 'models_comparison.png', dpi=600)
-    plt.savefig(outputs_dir / 'models_comparison.svg')
+    plt.savefig(outputs_dir / 'models_comparison.png', dpi=600, bbox_inches='tight')
+    plt.savefig(outputs_dir / 'models_comparison.svg', bbox_inches='tight')
     plt.close()
 
     max_indices = results_filtered_df.idxmax()

@@ -193,8 +193,8 @@ class Model:
         plt.xlabel('')
         plt.ylabel('Feature Importance', fontsize=18)
         plt.tight_layout()
-        plt.savefig(output_dir / f'{classifier_name}_feature_importance.png', dpi=600)
-        plt.savefig(output_dir / f'{classifier_name}_feature_importance.svg')
+        plt.savefig(output_dir / f'{classifier_name}_feature_importance.png', dpi=600, bbox_inches='tight')
+        plt.savefig(output_dir / f'{classifier_name}_feature_importance.svg', bbox_inches='tight')
         plt.close()
 
     @staticmethod
@@ -223,8 +223,8 @@ class Model:
             fontsize=20,  # Font size,
         )
 
-        plt.savefig(output_dir / 'DecisionTreeClassifier_plot.png', dpi=600)
-        plt.savefig(output_dir / 'DecisionTreeClassifier_plot.svg')
+        plt.savefig(output_dir / 'DecisionTreeClassifier_plot.png', dpi=600, bbox_inches='tight')
+        plt.savefig(output_dir / 'DecisionTreeClassifier_plot.svg', bbox_inches='tight')
         plt.close()
 
     @staticmethod
@@ -276,8 +276,8 @@ class Model:
         plt.suptitle("Decision surface of decision trees trained on pairs of features")
         plt.legend(loc="lower right", borderpad=0, handletextpad=0)
         _ = plt.axis("tight")
-        plt.savefig(output_dir / 'decision_functions_on_features_pairs_plot.png', dpi=600)
-        plt.savefig(output_dir / 'decision_functions_on_features_pairs_plot.svg')
+        plt.savefig(output_dir / 'decision_functions_on_features_pairs_plot.png', dpi=600, bbox_inches='tight')
+        plt.savefig(output_dir / 'decision_functions_on_features_pairs_plot.svg', bbox_inches='tight')
         plt.close()
 
     @staticmethod
