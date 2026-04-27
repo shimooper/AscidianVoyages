@@ -5,6 +5,7 @@ import joblib
 import pandas as pd
 import json
 import re
+import subprocess
 import seaborn as sns
 import numpy as np
 import matplotlib.pyplot as plt
@@ -198,10 +199,11 @@ class Model:
         plt.close()
 
     @staticmethod
-    def plot_decision_tree(model, feature_names, output_dir):
+    def plot_decision_tree(model, feature_names, output_dir, logger):
+        dot_path = output_dir / 'DecisionTreeClassifier_plot.dot'
         export_graphviz(
             model,
-            out_file=str(output_dir / 'DecisionTreeClassifier_plot.dot'),
+            out_file=str(dot_path),
             feature_names=feature_names,
             class_names=['Alive', 'Dead'],
             max_depth=2,
@@ -226,6 +228,32 @@ class Model:
         plt.savefig(output_dir / 'DecisionTreeClassifier_plot.png', dpi=600, bbox_inches='tight')
         plt.savefig(output_dir / 'DecisionTreeClassifier_plot.svg', bbox_inches='tight')
         plt.close()
+
+        # Create reversed-color version (dead=orange, alive=blue) by swapping R and B
+        # channels in every fillcolor. sklearn's default uses orange for class 0 (Alive)
+        # and blue for class 1 (Dead); swapping R↔B flips the two palettes.
+        def swap_rb_channels(match):
+            color = match.group(1)
+            r, g, b = color[0:2], color[2:4], color[4:6]
+            return f'fillcolor="#{b}{g}{r}"'
+
+        dot_content = dot_path.read_text()
+        reversed_content = re.sub(r'fillcolor="#([0-9a-fA-F]{6})"', swap_rb_channels, dot_content)
+
+        reversed_dot_path = output_dir / 'DecisionTreeClassifier_plot_reversed.dot'
+        reversed_dot_path.write_text(reversed_content)
+
+        png_cmd = ['dot', '-Tpng', '-Gdpi=600', '-o',
+                   str(output_dir / 'DecisionTreeClassifier_plot_reversed.png'),
+                   str(reversed_dot_path)]
+        logger.info(f"Running: {' '.join(png_cmd)}")
+        subprocess.run(png_cmd, check=True)
+
+        svg_cmd = ['dot', '-Tsvg', '-o',
+                   str(output_dir / 'DecisionTreeClassifier_plot_reversed.svg'),
+                   str(reversed_dot_path)]
+        logger.info(f"Running: {' '.join(svg_cmd)}")
+        subprocess.run(svg_cmd, check=True)
 
     @staticmethod
     def plot_decision_functions_of_features_pairs(Xs_train, Ys_train, best_params, feature_importances, output_dir):
@@ -516,16 +544,25 @@ class ScikitModel(Model):
                     self.plot_pdp_ice(class_name, best_estimator, Xs_test_features, classifier_output_dir, 'test')
 
                 if class_name == 'DecisionTreeClassifier':
-                    self.plot_decision_tree(best_estimator, list(Xs_train_features.columns), classifier_output_dir)
-                    logger.info(f'Plotted decision tree structure and saved it to {classifier_output_dir}')
+                    try:
+                        decision_tree_plot_dir = classifier_output_dir / 'decision_tree_plot'
+                        decision_tree_plot_dir.mkdir(exist_ok=True, parents=True)
+                        self.plot_decision_tree(best_estimator, list(Xs_train_features.columns), decision_tree_plot_dir, logger)
+                        logger.info(f'Plotted decision tree structure and saved it to {classifier_output_dir}')
+                    except Exception as e:
+                        logger.error(f'Failed to plot decision tree: {e}', exc_info=True)
+
                     if len(Xs_train_features.columns) >= 2 and not TEST_MODE:
                         best_params = grid.best_params_
                         if self.config.balance_classes:
                             best_params = {k.replace('clf__', ''): v for k, v in best_params.items()}
-                        self.plot_decision_functions_of_features_pairs(Xs_train_features, Ys_train, best_params,
-                                                                       best_estimator.feature_importances_,
-                                                                       classifier_output_dir)
-                        logger.info(f'Plotted decision functions on pairs of features and saved it to {classifier_output_dir}')
+                        try:
+                            self.plot_decision_functions_of_features_pairs(Xs_train_features, Ys_train, best_params,
+                                                                           best_estimator.feature_importances_,
+                                                                           classifier_output_dir)
+                            logger.info(f'Plotted decision functions on pairs of features and saved it to {classifier_output_dir}')
+                        except Exception as e:
+                            logger.error(f'Failed to plot decision functions of features pairs: {e}', exc_info=True)
 
                 Ys_test_predictions = best_estimator.predict_proba(Xs_test_features)
                 y_pred_probs = Ys_test_predictions[:, 1]
