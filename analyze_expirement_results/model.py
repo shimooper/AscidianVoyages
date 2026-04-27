@@ -5,7 +5,7 @@ import joblib
 import pandas as pd
 import json
 import re
-import subprocess
+import graphviz
 import seaborn as sns
 import numpy as np
 import matplotlib.pyplot as plt
@@ -243,17 +243,15 @@ class Model:
         reversed_dot_path = output_dir / 'DecisionTreeClassifier_plot_reversed.dot'
         reversed_dot_path.write_text(reversed_content)
 
-        png_cmd = ['dot', '-Tpng', '-Gdpi=600', '-o',
-                   str(output_dir / 'DecisionTreeClassifier_plot_reversed.png'),
-                   str(reversed_dot_path)]
-        logger.info(f"Running: {' '.join(png_cmd)}")
-        subprocess.run(png_cmd, check=True)
-
-        svg_cmd = ['dot', '-Tsvg', '-o',
-                   str(output_dir / 'DecisionTreeClassifier_plot_reversed.svg'),
-                   str(reversed_dot_path)]
-        logger.info(f"Running: {' '.join(svg_cmd)}")
-        subprocess.run(svg_cmd, check=True)
+        png_content = re.sub(r'(digraph\s+\w+\s*\{)', r'\1\ngraph [dpi="600"] ;', reversed_content, count=1)
+        graphviz.Source(png_content).render(
+            outfile=str(output_dir / 'DecisionTreeClassifier_plot_reversed.png'),
+            cleanup=True,
+        )
+        graphviz.Source(reversed_content).render(
+            outfile=str(output_dir / 'DecisionTreeClassifier_plot_reversed.svg'),
+            cleanup=True,
+        )
 
     @staticmethod
     def plot_decision_functions_of_features_pairs(Xs_train, Ys_train, best_params, feature_importances, output_dir):
