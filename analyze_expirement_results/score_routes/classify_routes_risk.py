@@ -66,7 +66,7 @@ def run_one_config(config, routes_train_path, routes_test_path, aggregation_type
 
     # Write to file routes scores
     all_routes_df = pd.concat([train_df, test_df], ignore_index=True)
-    all_routes_df.sort_values(by=['death_prediction_probability'], inplace=True)
+    all_routes_df.sort_values(by=['death_prediction_probability', 'Name', 'Season', 'Replicate'], inplace=True)
     all_routes_df.to_csv(output_dir / 'routes_risk.csv', index=False)
 
     # Group replicates
@@ -75,7 +75,7 @@ def run_one_config(config, routes_train_path, routes_test_path, aggregation_type
     }).reset_index()
     routes_grouped_df['death_prediction_probability'] = routes_grouped_df['death_prediction_probability'].round(4)
     routes_grouped_df['death_prediction'] = routes_grouped_df['death_prediction_probability'].map(lambda x: x >= 0.5)
-    routes_grouped_df.sort_values(by=['death_prediction_probability'], inplace=True)
+    routes_grouped_df.sort_values(by=['death_prediction_probability', 'Name', 'Season'], inplace=True)
     routes_grouped_df['NIS introduction binary risk'] = routes_grouped_df['death_prediction'].map(lambda x: 'LOW' if x else 'HIGH')
     routes_grouped_df['NIS introduction 3-class risk'] = routes_grouped_df['death_prediction_probability'].map(
         lambda x: 'LOW' if x >= 0.66 else ('INTERMEDIATE' if x >= 0.33 else 'HIGH'))

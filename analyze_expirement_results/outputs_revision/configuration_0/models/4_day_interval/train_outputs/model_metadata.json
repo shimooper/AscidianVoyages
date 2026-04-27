@@ -1,1 +1,1 @@
-{"numpy_version": "1.26.4", "joblib_version": "1.4.2", "sklearn_version": "1.6.1", "pandas_version": "2.2.3", "xgboost_version": "2.1.4", "lightning_version": "2.5.1", "torch_version": "2.6.0"}
+{"numpy_version": "2.2.4", "joblib_version": "1.4.2", "sklearn_version": "1.6.1", "pandas_version": "2.2.3", "xgboost_version": "2.1.4", "lightning_version": "2.5.1", "torch_version": "2.6.0"}
