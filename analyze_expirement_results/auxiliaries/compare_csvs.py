@@ -5,13 +5,32 @@ Usage:
     python compare_csvs.py file1.csv file2.csv
 """
 import argparse
+import csv
 import sys
 import pandas as pd
 
 
+def _sniff_delimiter(path):
+    with open(path, newline="", encoding="utf-8") as f:
+        sample = f.read(4096)
+    try:
+        dialect = csv.Sniffer().sniff(sample, delimiters=",\t")
+        return dialect.delimiter
+    except csv.Error:
+        return ","
+
+
 def compare_csvs(path1, path2):
-    df1 = pd.read_csv(path1)
-    df2 = pd.read_csv(path2)
+    sep1 = _sniff_delimiter(path1)
+    sep2 = _sniff_delimiter(path2)
+
+    if sep1 == "\t":
+        print(f"Note: {path1} uses tab delimiter — treating as comma-delimited for comparison.")
+    if sep2 == "\t":
+        print(f"Note: {path2} uses tab delimiter — treating as comma-delimited for comparison.")
+
+    df1 = pd.read_csv(path1, sep=sep1)
+    df2 = pd.read_csv(path2, sep=sep2)
 
     if list(df1.columns) != list(df2.columns):
         print("DIFFERENT: columns do not match.")
