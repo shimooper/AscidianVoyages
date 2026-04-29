@@ -65,7 +65,7 @@ def _make_ascii_safe_tmp(path):
     return tmp_path
 
 
-def combine_svgs(input_paths, output_path, ncols, label_size, gap=0):
+def combine_svgs(input_paths, output_path, ncols, label_size, gap=0, span_last_row=False):
     if len(input_paths) > 26:
         raise ValueError("At most 26 figures are supported (A–Z).")
 
@@ -76,12 +76,19 @@ def combine_svgs(input_paths, output_path, ncols, label_size, gap=0):
     # Read each figure's dimensions individually
     dims = [_svg_dimensions_pt(p) for p in input_paths]
 
+    last_row_start = (nrows - 1) * ncols
+    last_row_count = n - last_row_start
+    last_row_spans = span_last_row and last_row_count < ncols
+
     # Max width per column and max height per row for alignment
+    # Figures in a spanning last row don't contribute to per-column widths
     col_widths = [0.0] * ncols
     row_heights = [0.0] * nrows
     for i, (w, h) in enumerate(dims):
-        col_widths[i % ncols] = max(col_widths[i % ncols], w)
-        row_heights[i // ncols] = max(row_heights[i // ncols], h)
+        row = i // ncols
+        row_heights[row] = max(row_heights[row], h)
+        if not (last_row_spans and i >= last_row_start):
+            col_widths[i % ncols] = max(col_widths[i % ncols], w)
 
     col_x = [sum(col_widths[:c]) + c * gap for c in range(ncols)]
     row_y = [sum(row_heights[:r]) + r * gap for r in range(nrows)]
@@ -98,11 +105,21 @@ def combine_svgs(input_paths, output_path, ncols, label_size, gap=0):
             col = i % ncols
             row = i // ncols
             w, h = dims[i]
-            x_fig = col_x[col] + (col_widths[col] - w) / 2
             y = row_y[row]
+
+            if last_row_spans and i >= last_row_start:
+                # Distribute spanning figures evenly across the full canvas width
+                slot_w = total_w / last_row_count
+                slot_idx = i - last_row_start
+                x_fig = slot_idx * slot_w + (slot_w - w) / 2
+                x_label = slot_idx * slot_w
+            else:
+                x_fig = col_x[col] + (col_widths[col] - w) / 2
+                x_label = col_x[col]
+
             panels.append(sc.Panel(
                 svg.move(x_fig, y),
-                sc.Text(label, col_x[col] + 2, y + label_size * 0.7, size=label_size, weight='bold', font='Arial'),
+                sc.Text(label, x_label + 2, y + label_size * 0.7, size=label_size, weight='bold', font='Arial'),
             ))
 
         fig = sc.Figure(total_w, total_h, *panels)
@@ -128,9 +145,10 @@ def main():
     parser.add_argument("--ncols", type=int, default=2, help="Number of columns in the grid (default: 2)")
     parser.add_argument("--label-size", type=int, default=30, help="Font size for panel labels (default: 28)")
     parser.add_argument("--gap", type=int, default=30, help="Gap in pixels between panels; use negative values to reduce whitespace (default: 0)")
+    parser.add_argument("--span-last-row", action="store_true", help="Center incomplete last-row figures across the full canvas width")
     args = parser.parse_args()
 
-    combine_svgs(args.inputs, args.output, args.ncols, args.label_size, args.gap)
+    combine_svgs(args.inputs, args.output, args.ncols, args.label_size, args.gap, args.span_last_row)
 
 
 if __name__ == "__main__":
