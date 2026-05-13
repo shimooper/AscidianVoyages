@@ -103,7 +103,7 @@ def main(base_dir: Path, output_dir: Path):
     for metric, label, color in [('mcc', 'MCC', 'steelblue'), ('f1', 'F1', 'darkorange'), ('auprc', 'AUPRC', 'forestgreen')]:
         ax.plot(results_df['train_pct'], results_df[metric], marker='o', label=label, color=color)
     ax.set_xticks(results_df['train_pct'])
-    ax.set_xticklabels([f'{p}%' for p in results_df['train_pct']])
+    ax.set_xticklabels([f'{p}' for p in results_df['train_pct']])
     ax.set_xlabel('Training set size (% of full train set)', fontsize=18)
     ax.set_ylabel('Score', fontsize=18)
     ax.tick_params(axis='both', labelsize=14)

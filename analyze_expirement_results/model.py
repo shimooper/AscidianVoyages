@@ -306,8 +306,7 @@ class Model:
         plt.savefig(output_dir / 'decision_functions_on_features_pairs_plot.svg', bbox_inches='tight')
         plt.close()
 
-    @staticmethod
-    def plot_pdp_ice(classifier_name, estimator, X, output_dir, split_label):
+    def plot_pdp_ice(self, classifier_name, estimator, X, output_dir, split_label):
         features = list(X.columns)
         n_features = len(features)
         n_cols = math.ceil(n_features / 2)
@@ -325,8 +324,13 @@ class Model:
             ax=axes[:n_features],
             ice_lines_kw={'alpha': 0.1, 'color': 'steelblue'},
             pd_line_kw={'color': 'red', 'linewidth': 2},
-            random_state=0,
+            random_state=self.config.random_state,
         )
+
+        for ax in axes[:n_features]:
+            ax.tick_params(axis='both', labelsize=14)
+            ax.set_xlabel(ax.get_xlabel(), fontsize=16)
+            ax.set_ylabel(ax.get_ylabel(), fontsize=16)
 
         plt.savefig(output_dir / f'{classifier_name}_pdp_ice_{split_label}.png', dpi=600, bbox_inches='tight')
         plt.savefig(output_dir / f'{classifier_name}_pdp_ice_{split_label}.svg', bbox_inches='tight')

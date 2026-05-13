@@ -143,8 +143,8 @@ def main():
     parser.add_argument("inputs", nargs="+", help="Paths to input SVG files (in order)")
     parser.add_argument("-o", "--output", required=True, type=Path, help="Path to output SVG file")
     parser.add_argument("--ncols", type=int, default=2, help="Number of columns in the grid (default: 2)")
-    parser.add_argument("--label-size", type=int, default=30, help="Font size for panel labels (default: 28)")
-    parser.add_argument("--gap", type=int, default=30, help="Gap in pixels between panels; use negative values to reduce whitespace (default: 0)")
+    parser.add_argument("--label-size", type=int, default=30, help="Font size for panel labels")
+    parser.add_argument("--gap", type=int, default=30, help="Gap in pixels between panels; use negative values to reduce whitespace")
     parser.add_argument("--span-last-row", action="store_true", help="Center incomplete last-row figures across the full canvas width")
     args = parser.parse_args()
 
